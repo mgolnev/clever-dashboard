@@ -25,6 +25,30 @@ type KPI struct {
 	InTransit      int     `json:"inTransit"`      // заказы «в пути» (не дошли до выкупа/отмены)
 	G2N            float64 `json:"g2n"`            // выкуплено / оформлено (гросс), %
 	RedemptionRate float64 `json:"redemptionRate"` // выкуплено / заказы в конечном статусе, %
+
+	Stages KPIStages `json:"stages"` // показатели по стадиям воронки
+}
+
+// StageKPI — показатели на одной стадии (оформлено/оплачено/выкуплено).
+type StageKPI struct {
+	Orders  int     `json:"orders"`
+	Revenue int     `json:"revenue"`
+	Units   int     `json:"units"`
+	AOV     int     `json:"aov"` // средний чек на заказ
+	ASP     int     `json:"asp"` // средняя цена позиции
+	UPT     float64 `json:"upt"` // units per transaction (позиций на заказ)
+}
+
+// KPIStages — воронка «оформлено → оплачено → транзит → выкуплено» по абсолютам.
+// Terminal/PaidTerminal — служебные знаменатели для коэффициентов G2N/P2N
+// «в конечном статусе» (исключают заказы в транзите).
+type KPIStages struct {
+	Created      StageKPI `json:"created"`      // оформлено (гросс — все заказы периода)
+	Paid         StageKPI `json:"paid"`         // оплачено (is_paid)
+	InTransit    StageKPI `json:"inTransit"`    // в пути (не в конечном статусе)
+	Completed    StageKPI `json:"completed"`    // выкуплено (status_stage=completed)
+	Terminal     StageKPI `json:"terminal"`     // в конечном статусе (completed/canceled/closed/returned)
+	PaidTerminal StageKPI `json:"paidTerminal"` // оплачено и в конечном статусе
 }
 
 // NamedCount — срез по справочнику (канал/оплата/доставка/регион).

@@ -19,15 +19,17 @@ export const api = {
 
   cities: () => fetch("/api/cities").then((r) => handle<City[]>(r)),
 
-  metrics: (start: string, end: string, city: string) =>
-    fetch(`/api/metrics?start=${start}&end=${end}&city=${encodeURIComponent(city)}`).then((r) =>
-      handle<Report>(r)
-    ),
+  regions: () => fetch("/api/regions").then((r) => handle<City[]>(r)),
 
-  funnel: (start: string, end: string, city: string) =>
-    fetch(`/api/funnel?start=${start}&end=${end}&city=${encodeURIComponent(city)}`).then((r) =>
-      handle<FunnelReport>(r)
-    ),
+  metrics: (start: string, end: string, city: string, region: string) =>
+    fetch(
+      `/api/metrics?start=${start}&end=${end}&city=${encodeURIComponent(city)}&region=${encodeURIComponent(region)}`
+    ).then((r) => handle<Report>(r)),
+
+  funnel: (start: string, end: string, city: string, region: string) =>
+    fetch(
+      `/api/funnel?start=${start}&end=${end}&city=${encodeURIComponent(city)}&region=${encodeURIComponent(region)}`
+    ).then((r) => handle<FunnelReport>(r)),
 
   importFile: (file: File) => {
     const fd = new FormData();

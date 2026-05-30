@@ -25,10 +25,15 @@ func (s *Service) Cities() ([]NamedCount, error) {
 	return s.repo.cities()
 }
 
+// Regions — области/регионы для фильтра (по убыванию числа заказов).
+func (s *Service) Regions() ([]NamedCount, error) {
+	return s.repo.regions()
+}
+
 // Report считает метрики за период [start,end] и за предыдущий период такой же
-// длины с опциональным фильтром по городу. start/end — даты YYYY-MM-DD; если
-// пустые, берётся последняя неделя данных.
-func (s *Service) Report(start, end, city string) (*Report, error) {
+// длины с опциональным фильтром по городу и/или области. start/end — даты
+// YYYY-MM-DD; если пустые, берётся последняя неделя данных.
+func (s *Service) Report(start, end, city, region string) (*Report, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -49,11 +54,11 @@ func (s *Service) Report(start, end, city string) (*Report, error) {
 	prevEnd := st.AddDate(0, 0, -1)
 	prevStart := prevEnd.AddDate(0, 0, -(days - 1))
 
-	cur, err := s.period(st, en, city)
+	cur, err := s.period(st, en, city, region)
 	if err != nil {
 		return nil, err
 	}
-	prev, err := s.period(prevStart, prevEnd, city)
+	prev, err := s.period(prevStart, prevEnd, city, region)
 	if err != nil {
 		return nil, err
 	}
@@ -66,40 +71,40 @@ func (s *Service) Report(start, end, city string) (*Report, error) {
 	}, nil
 }
 
-func (s *Service) period(st, en time.Time, city string) (PeriodMetrics, error) {
+func (s *Service) period(st, en time.Time, city, region string) (PeriodMetrics, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
 	var pm PeriodMetrics
 	var err error
-	if pm.KPI, err = s.repo.kpi(startTs, endTs, city); err != nil {
+	if pm.KPI, err = s.repo.kpi(startTs, endTs, city, region); err != nil {
 		return pm, err
 	}
-	if pm.Funnel, err = s.repo.funnel(startTs, endTs, city); err != nil {
+	if pm.Funnel, err = s.repo.funnel(startTs, endTs, city, region); err != nil {
 		return pm, err
 	}
-	if pm.ByChannel, err = s.repo.groupOrders("channel", startTs, endTs, city, 10); err != nil {
+	if pm.ByChannel, err = s.repo.groupOrders("channel", startTs, endTs, city, region, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByPayment, err = s.repo.groupOrders("payment_system", startTs, endTs, city, 10); err != nil {
+	if pm.ByPayment, err = s.repo.groupOrders("payment_system", startTs, endTs, city, region, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByDelivery, err = s.repo.groupOrders("delivery_service", startTs, endTs, city, 10); err != nil {
+	if pm.ByDelivery, err = s.repo.groupOrders("delivery_service", startTs, endTs, city, region, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByRegion, err = s.repo.groupOrders("region", startTs, endTs, city, 10); err != nil {
+	if pm.ByRegion, err = s.repo.groupOrders("region", startTs, endTs, city, region, 10); err != nil {
 		return pm, err
 	}
-	if pm.TopProducts, err = s.repo.groupProducts("name", startTs, endTs, city, 15); err != nil {
+	if pm.TopProducts, err = s.repo.groupProducts("name", startTs, endTs, city, region, 15); err != nil {
 		return pm, err
 	}
-	if pm.ByCategory, err = s.repo.groupProducts("category", startTs, endTs, city, 12); err != nil {
+	if pm.ByCategory, err = s.repo.groupProducts("category", startTs, endTs, city, region, 12); err != nil {
 		return pm, err
 	}
-	if pm.ByGender, err = s.repo.groupProducts("gender", startTs, endTs, city, 6); err != nil {
+	if pm.ByGender, err = s.repo.groupProducts("gender", startTs, endTs, city, region, 6); err != nil {
 		return pm, err
 	}
-	if pm.ByBrand, err = s.repo.groupProducts("brand", startTs, endTs, city, 8); err != nil {
+	if pm.ByBrand, err = s.repo.groupProducts("brand", startTs, endTs, city, region, 8); err != nil {
 		return pm, err
 	}
 	pm.ensureNonNil()

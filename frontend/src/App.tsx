@@ -25,6 +25,8 @@ export default function App() {
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [city, setCity] = useState("");
+  const [regions, setRegions] = useState<City[]>([]);
+  const [region, setRegion] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +41,18 @@ export default function App() {
     return b;
   }, [start, end]);
 
-  const loadCities = useCallback(async () => {
-    const list = await api.cities().catch(() => [] as City[]);
-    setCities(list);
+  const loadGeo = useCallback(async () => {
+    const [cs, rs] = await Promise.all([
+      api.cities().catch(() => [] as City[]),
+      api.regions().catch(() => [] as City[]),
+    ]);
+    setCities(cs);
+    setRegions(rs);
   }, []);
 
   useEffect(() => {
     loadBounds().catch((e) => setError(e.message));
-    loadCities();
+    loadGeo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -54,14 +60,14 @@ export default function App() {
     if (!start || !end) return;
     setLoading(true);
     setError(null);
-    Promise.all([api.metrics(start, end, city), api.funnel(start, end, city)])
+    Promise.all([api.metrics(start, end, city, region), api.funnel(start, end, city, region)])
       .then(([m, f]) => {
         setReport(m);
         setFunnel(f);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [start, end, city]);
+  }, [start, end, city, region]);
 
   const onChange = (s: string, e: string) => {
     setStart(s);
@@ -74,7 +80,7 @@ export default function App() {
       setEnd(b.max);
       setStart(addDays(b.max, -6));
     }
-    loadCities();
+    loadGeo();
   };
 
   const hasData = !!bounds?.max;
@@ -130,6 +136,9 @@ export default function App() {
               cities={cities}
               city={city}
               onCityChange={setCity}
+              regions={regions}
+              region={region}
+              onRegionChange={setRegion}
               onChange={onChange}
             />
           </div>

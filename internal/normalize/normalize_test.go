@@ -38,6 +38,14 @@ func TestStatusStage(t *testing.T) {
 	if got := StatusStage("Прибыл в ПВЗ", false); got != StageInPVZ {
 		t.Errorf("got %q", got)
 	}
+	// Полный возврат средств — это возврат, а не «прочее».
+	if got := StatusStage("Совершён возврат средств", false); got != StageReturned {
+		t.Errorf("полный возврат -> %q, ожидали returned", got)
+	}
+	// Статус «Оплачен» — заказ в обработке (в пути), а не «прочее».
+	if got := StatusStage("Оплачен", false); got != StageProcessing {
+		t.Errorf("оплачен -> %q, ожидали processing", got)
+	}
 }
 
 func TestProduct(t *testing.T) {

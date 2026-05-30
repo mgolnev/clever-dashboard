@@ -21,6 +21,7 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Post("/import", h.importFile)
 	api.Get("/bounds", h.bounds)
 	api.Get("/cities", h.cities)
+	api.Get("/regions", h.regions)
 	api.Get("/metrics", h.metrics)
 	api.Get("/funnel", h.funnel)
 }
@@ -67,8 +68,16 @@ func (h *Handler) cities(c *fiber.Ctx) error {
 	return c.JSON(cities)
 }
 
+func (h *Handler) regions(c *fiber.Ctx) error {
+	regions, err := h.c.Metrics.Regions()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(regions)
+}
+
 func (h *Handler) metrics(c *fiber.Ctx) error {
-	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), c.Query("city"))
+	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), c.Query("city"), c.Query("region"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -76,7 +85,7 @@ func (h *Handler) metrics(c *fiber.Ctx) error {
 }
 
 func (h *Handler) funnel(c *fiber.Ctx) error {
-	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), c.Query("city"))
+	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), c.Query("city"), c.Query("region"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}

@@ -16,9 +16,9 @@ type Service struct {
 
 func NewService(repo *Repository) *Service { return &Service{repo: repo} }
 
-// Report строит воронку за период [start,end] с опциональным фильтром по городу.
-// Пустые даты — последняя неделя данных.
-func (s *Service) Report(start, end, city string) (*Funnel, error) {
+// Report строит воронку за период [start,end] с опциональным фильтром по городу
+// и/или области. Пустые даты — последняя неделя данных.
+func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (s *Service) Report(start, end, city string) (*Funnel, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
-	c, err := s.repo.reach(startTs, endTs, city)
+	c, err := s.repo.reach(startTs, endTs, city, region)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (s *Service) Report(start, end, city string) (*Funnel, error) {
 		{"channel", "channel", "Канал заказа"},
 		{"region", "region", "Регион"},
 	} {
-		rows, err := s.repo.segment(def.col, startTs, endTs, city, 12)
+		rows, err := s.repo.segment(def.col, startTs, endTs, city, region, 12)
 		if err != nil {
 			return nil, err
 		}
@@ -62,11 +62,11 @@ func (s *Service) Report(start, end, city string) (*Funnel, error) {
 		segs = append(segs, SegmentGroup{By: def.by, Label: def.label, Rows: rows})
 	}
 
-	topProblems, err := s.repo.topLabeled("problem_desc", startTs, endTs, city, 8)
+	topProblems, err := s.repo.topLabeled("problem_desc", startTs, endTs, city, region, 8)
 	if err != nil {
 		return nil, err
 	}
-	topReasons, err := s.repo.topLabeled("cancel_reason", startTs, endTs, city, 8)
+	topReasons, err := s.repo.topLabeled("cancel_reason", startTs, endTs, city, region, 8)
 	if err != nil {
 		return nil, err
 	}

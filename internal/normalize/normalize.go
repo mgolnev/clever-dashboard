@@ -70,6 +70,7 @@ const (
 
 var statusMap = map[string]string{
 	"не подтвержден":                     StageNew,
+	"оплачен":                            StageProcessing,
 	"принят":                             StageProcessing,
 	"обработан":                          StageProcessing,
 	"ожидает отправку":                   StageProcessing,
@@ -81,6 +82,8 @@ var statusMap = map[string]string{
 	"возврат заказа":                     StageReturned,
 	"совершён частичный возврат средств": StageReturned,
 	"совершен частичный возврат средств": StageReturned,
+	"совершён возврат средств":           StageReturned,
+	"совершен возврат средств":           StageReturned,
 }
 
 // StatusStage маппит сырой статус Битрикса в каноническую стадию воронки.

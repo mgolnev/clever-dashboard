@@ -4,6 +4,24 @@ export interface Range {
   days: number;
 }
 
+export interface StageKPI {
+  orders: number;
+  revenue: number;
+  units: number;
+  aov: number;
+  asp: number;
+  upt: number;
+}
+
+export interface KPIStages {
+  created: StageKPI;
+  paid: StageKPI;
+  inTransit: StageKPI;
+  completed: StageKPI;
+  terminal: StageKPI;
+  paidTerminal: StageKPI;
+}
+
 export interface KPI {
   orders: number;
   netOrders: number;
@@ -21,6 +39,7 @@ export interface KPI {
   inTransit: number;
   g2n: number;
   redemptionRate: number;
+  stages: KPIStages;
 }
 
 export interface NamedCount {

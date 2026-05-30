@@ -13,12 +13,19 @@ type Repository struct {
 
 func NewRepository(d *db.DB) *Repository { return &Repository{db: d} }
 
-// cityCond — доп. условие WHERE по городу и его аргументы.
-func cityCond(city string) (string, []interface{}) {
-	if strings.TrimSpace(city) == "" {
-		return "", nil
+// geoCond — доп. условие WHERE по городу и/или области и его аргументы.
+func geoCond(city, region string) (string, []interface{}) {
+	var sb strings.Builder
+	var args []interface{}
+	if strings.TrimSpace(city) != "" {
+		sb.WriteString(" AND city = ?")
+		args = append(args, city)
 	}
-	return " AND city = ?", []interface{}{city}
+	if strings.TrimSpace(region) != "" {
+		sb.WriteString(" AND region = ?")
+		args = append(args, region)
+	}
+	return sb.String(), args
 }
 
 func boolTrue(d *db.DB) string {
@@ -34,12 +41,15 @@ type reachCounts struct {
 	canceled, returns, problems                              int
 }
 
-func (r *Repository) reach(start, end, city string) (reachCounts, error) {
+func (r *Repository) reach(start, end, city, region string) (reachCounts, error) {
 	t := boolTrue(r.db)
-	cc, cargs := cityCond(city)
+	cc, cargs := geoCond(city, region)
+	// Этап «оплачен» засчитывается, если заказ оплачен ИЛИ продвинулся дальше
+	// оплаты (в сборку и далее) — иначе кумулятивная воронка ломается из-за
+	// заказов в статусе processing+ с незаполненным флагом is_paid.
 	q := r.db.Rebind(fmt.Sprintf(`SELECT
 		COUNT(*),
-		COALESCE(SUM(CASE WHEN is_paid = %[1]s THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN is_paid = %[1]s OR status_stage IN ('processing','shipped','in_pvz','completed','returned') THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage IN ('processing','shipped','in_pvz','completed','returned') THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage IN ('shipped','in_pvz','completed','returned') THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage IN ('in_pvz','completed','returned') THEN 1 ELSE 0 END),0),
@@ -56,9 +66,9 @@ func (r *Repository) reach(start, end, city string) (reachCounts, error) {
 }
 
 // segment строит воронку в разрезе указанной колонки.
-func (r *Repository) segment(col, start, end, city string, limit int) ([]SegmentRow, error) {
+func (r *Repository) segment(col, start, end, city, region string, limit int) ([]SegmentRow, error) {
 	t := boolTrue(r.db)
-	cc, cargs := cityCond(city)
+	cc, cargs := geoCond(city, region)
 	expr := fmt.Sprintf("COALESCE(NULLIF(%s,''),'—')", col)
 	q := r.db.Rebind(fmt.Sprintf(`SELECT %[1]s AS name,
 		COUNT(*),
@@ -91,8 +101,8 @@ func (r *Repository) segment(col, start, end, city string, limit int) ([]Segment
 }
 
 // topLabeled возвращает топ непустых значений колонки (проблемы/причины отмены).
-func (r *Repository) topLabeled(col, start, end, city string, limit int) ([]LabeledCount, error) {
-	cc, cargs := cityCond(city)
+func (r *Repository) topLabeled(col, start, end, city, region string, limit int) ([]LabeledCount, error) {
+	cc, cargs := geoCond(city, region)
 	q := r.db.Rebind(fmt.Sprintf(`SELECT %[1]s AS name, COUNT(*)
 		FROM orders WHERE created_at >= ? AND created_at <= ?
 		AND %[1]s IS NOT NULL AND %[1]s <> ''`+cc+`

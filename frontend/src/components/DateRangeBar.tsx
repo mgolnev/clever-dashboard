@@ -10,6 +10,9 @@ interface Props {
   cities: City[];
   city: string;
   onCityChange: (city: string) => void;
+  regions: City[];
+  region: string;
+  onRegionChange: (region: string) => void;
   onChange: (start: string, end: string) => void;
 }
 
@@ -28,6 +31,9 @@ export default function DateRangeBar({
   cities,
   city,
   onCityChange,
+  regions,
+  region,
+  onRegionChange,
   onChange,
 }: Props) {
   const anchor = max || end;
@@ -69,6 +75,21 @@ export default function DateRangeBar({
           onChange={(e) => onChange(start, e.target.value)}
           className="mt-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink"
         />
+      </label>
+      <label className="flex flex-col text-xs font-medium text-slate-500">
+        Область
+        <select
+          value={region}
+          onChange={(e) => onRegionChange(e.target.value)}
+          className="mt-1 max-w-[200px] rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink"
+        >
+          <option value="">Все области</option>
+          {regions.map((r) => (
+            <option key={r.name} value={r.name}>
+              {r.name} ({num(r.orders)})
+            </option>
+          ))}
+        </select>
       </label>
       <label className="flex flex-col text-xs font-medium text-slate-500">
         Город
