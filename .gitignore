@@ -1,0 +1,27 @@
+# Go
+/bin/
+/tmp/
+*.test
+*.out
+
+# Local database / data
+/data/*.db
+/data/*.sqlite
+/uploads/
+
+# Env
+.env
+.env.local
+
+# Frontend
+/frontend/node_modules/
+/frontend/build/
+/frontend/dist/
+/frontend/.vite/
+
+# OS / editors
+.DS_Store
+*.log
+
+# Large source export (kept locally, not in VCS)
+sale_order.xls
