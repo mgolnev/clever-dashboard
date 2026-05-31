@@ -4,11 +4,11 @@ import "testing"
 
 func TestMoney(t *testing.T) {
 	cases := map[string]int{
-		"3 313 руб": 3313,
-		"719 руб":   719,
+		"3 313 руб":      3313,
+		"719 руб":        719,
 		"1\u00a0710 руб": 1710,
-		"":          0,
-		"0 руб":     0,
+		"":               0,
+		"0 руб":          0,
 	}
 	for in, want := range cases {
 		if got := Money(in); got != want {

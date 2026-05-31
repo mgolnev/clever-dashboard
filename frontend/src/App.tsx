@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
-import type { Bounds, City, FunnelReport, Report } from "./types";
+import type { Bounds, City, FunnelReport, LogisticsReport, Report } from "./types";
 import DateRangeBar from "./components/DateRangeBar";
 import UploadCard from "./components/UploadCard";
 import KpiCards from "./components/KpiCards";
@@ -8,8 +8,10 @@ import Funnel from "./components/Funnel";
 import BreakdownList from "./components/BreakdownList";
 import ProductTable from "./components/ProductTable";
 import FunnelTab from "./components/FunnelTab";
+import LogisticsTab from "./components/LogisticsTab";
+import DynamicsTab from "./components/DynamicsTab";
 
-type Tab = "overview" | "funnels";
+type Tab = "overview" | "funnels" | "logistics" | "dynamics";
 
 function addDays(date: string, days: number): string {
   const d = new Date(date + "T00:00:00");
@@ -23,10 +25,19 @@ export default function App() {
   const [end, setEnd] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
+  const [logistics, setLogistics] = useState<LogisticsReport | null>(null);
   const [cities, setCities] = useState<City[]>([]);
-  const [city, setCity] = useState("");
+  const [city, setCity] = useState<string[]>([]);
   const [regions, setRegions] = useState<City[]>([]);
-  const [region, setRegion] = useState("");
+  const [region, setRegion] = useState<string[]>([]);
+  const [channels, setChannels] = useState<City[]>([]);
+  const [channel, setChannel] = useState<string[]>([]);
+  const [payments, setPayments] = useState<City[]>([]);
+  const [payment, setPayment] = useState<string[]>([]);
+  const [deliveries, setDeliveries] = useState<City[]>([]);
+  const [delivery, setDelivery] = useState<string[]>([]);
+  const [coupons, setCoupons] = useState<City[]>([]);
+  const [coupon, setCoupon] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,12 +53,20 @@ export default function App() {
   }, [start, end]);
 
   const loadGeo = useCallback(async () => {
-    const [cs, rs] = await Promise.all([
+    const [cs, rs, ch, pm, dl, cp] = await Promise.all([
       api.cities().catch(() => [] as City[]),
       api.regions().catch(() => [] as City[]),
+      api.channels().catch(() => [] as City[]),
+      api.payments().catch(() => [] as City[]),
+      api.deliveries().catch(() => [] as City[]),
+      api.coupons().catch(() => [] as City[]),
     ]);
     setCities(cs);
     setRegions(rs);
+    setChannels(ch);
+    setPayments(pm);
+    setDeliveries(dl);
+    setCoupons(cp);
   }, []);
 
   useEffect(() => {
@@ -56,18 +75,32 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const cityKey = city.join(",");
+  const regionKey = region.join(",");
+  const channelKey = channel.join(",");
+  const paymentKey = payment.join(",");
+  const deliveryKey = delivery.join(",");
+  const couponKey = coupon.join(",");
+
   useEffect(() => {
     if (!start || !end) return;
     setLoading(true);
     setError(null);
-    Promise.all([api.metrics(start, end, city, region), api.funnel(start, end, city, region)])
-      .then(([m, f]) => {
+    const f = { city, region, channel, payment, delivery, coupon };
+    Promise.all([
+      api.metrics(start, end, f),
+      api.funnel(start, end, f),
+      api.logistics(start, end, f),
+    ])
+      .then(([m, f, l]) => {
         setReport(m);
         setFunnel(f);
+        setLogistics(l);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [start, end, city, region]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, end, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
 
   const onChange = (s: string, e: string) => {
     setStart(s);
@@ -111,6 +144,8 @@ export default function App() {
               [
                 ["overview", "Обзор"],
                 ["funnels", "Воронки"],
+                ["logistics", "Логистика"],
+                ["dynamics", "Динамика"],
               ] as [Tab, string][]
             ).map(([key, label]) => (
               <button
@@ -139,6 +174,18 @@ export default function App() {
               regions={regions}
               region={region}
               onRegionChange={setRegion}
+              channels={channels}
+              channel={channel}
+              onChannelChange={setChannel}
+              payments={payments}
+              payment={payment}
+              onPaymentChange={setPayment}
+              deliveries={deliveries}
+              delivery={delivery}
+              onDeliveryChange={setDelivery}
+              coupons={coupons}
+              coupon={coupon}
+              onCouponChange={setCoupon}
               onChange={onChange}
             />
           </div>
@@ -152,6 +199,33 @@ export default function App() {
       {loading && <div className="py-4 text-sm text-slate-400">Загрузка метрик…</div>}
 
       {tab === "funnels" && funnel && <FunnelTab report={funnel} />}
+
+      {tab === "logistics" && !loading && !logistics && (
+        <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+          Не удалось загрузить метрики логистики. Проверьте, что backend перезапущен и отвечает на{" "}
+          <code className="text-xs">/api/logistics</code>.
+        </div>
+      )}
+
+      {tab === "logistics" && logistics && (
+        <LogisticsTab report={logistics} />
+      )}
+
+      {tab === "dynamics" && !loading && !logistics && (
+        <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+          Не удалось загрузить данные динамики. Проверьте, что backend перезапущен и отвечает на{" "}
+          <code className="text-xs">/api/logistics</code>.
+        </div>
+      )}
+
+      {tab === "dynamics" && logistics && (
+        <DynamicsTab
+          report={logistics}
+          start={start}
+          end={end}
+          filters={{ city, region, channel, payment, delivery, coupon }}
+        />
+      )}
 
       {tab === "overview" && report && (
         <div className="space-y-4">

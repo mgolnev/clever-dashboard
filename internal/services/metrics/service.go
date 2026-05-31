@@ -30,10 +30,30 @@ func (s *Service) Regions() ([]NamedCount, error) {
 	return s.repo.regions()
 }
 
+// Channels — витрины (канал заказа: приложение/сайт) для фильтра.
+func (s *Service) Channels() ([]NamedCount, error) {
+	return s.repo.channels()
+}
+
+// Payments — способы оплаты для фильтра (по убыванию числа заказов).
+func (s *Service) Payments() ([]NamedCount, error) {
+	return s.repo.payments()
+}
+
+// Deliveries — способы доставки для фильтра (по убыванию числа заказов).
+func (s *Service) Deliveries() ([]NamedCount, error) {
+	return s.repo.deliveries()
+}
+
+// Coupons — промокоды (купоны заказа) для фильтра (по убыванию числа заказов).
+func (s *Service) Coupons() ([]NamedCount, error) {
+	return s.repo.coupons()
+}
+
 // Report считает метрики за период [start,end] и за предыдущий период такой же
 // длины с опциональным фильтром по городу и/или области. start/end — даты
 // YYYY-MM-DD; если пустые, берётся последняя неделя данных.
-func (s *Service) Report(start, end, city, region string) (*Report, error) {
+func (s *Service) Report(start, end string, f Filters) (*Report, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -54,11 +74,11 @@ func (s *Service) Report(start, end, city, region string) (*Report, error) {
 	prevEnd := st.AddDate(0, 0, -1)
 	prevStart := prevEnd.AddDate(0, 0, -(days - 1))
 
-	cur, err := s.period(st, en, city, region)
+	cur, err := s.period(st, en, f)
 	if err != nil {
 		return nil, err
 	}
-	prev, err := s.period(prevStart, prevEnd, city, region)
+	prev, err := s.period(prevStart, prevEnd, f)
 	if err != nil {
 		return nil, err
 	}
@@ -71,40 +91,40 @@ func (s *Service) Report(start, end, city, region string) (*Report, error) {
 	}, nil
 }
 
-func (s *Service) period(st, en time.Time, city, region string) (PeriodMetrics, error) {
+func (s *Service) period(st, en time.Time, f Filters) (PeriodMetrics, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
 	var pm PeriodMetrics
 	var err error
-	if pm.KPI, err = s.repo.kpi(startTs, endTs, city, region); err != nil {
+	if pm.KPI, err = s.repo.kpi(startTs, endTs, f); err != nil {
 		return pm, err
 	}
-	if pm.Funnel, err = s.repo.funnel(startTs, endTs, city, region); err != nil {
+	if pm.Funnel, err = s.repo.funnel(startTs, endTs, f); err != nil {
 		return pm, err
 	}
-	if pm.ByChannel, err = s.repo.groupOrders("channel", startTs, endTs, city, region, 10); err != nil {
+	if pm.ByChannel, err = s.repo.groupOrders("channel", startTs, endTs, f, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByPayment, err = s.repo.groupOrders("payment_system", startTs, endTs, city, region, 10); err != nil {
+	if pm.ByPayment, err = s.repo.groupOrders("payment_system", startTs, endTs, f, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByDelivery, err = s.repo.groupOrders("delivery_service", startTs, endTs, city, region, 10); err != nil {
+	if pm.ByDelivery, err = s.repo.groupOrders("delivery_service", startTs, endTs, f, 10); err != nil {
 		return pm, err
 	}
-	if pm.ByRegion, err = s.repo.groupOrders("region", startTs, endTs, city, region, 10); err != nil {
+	if pm.ByRegion, err = s.repo.groupOrders("region", startTs, endTs, f, 10); err != nil {
 		return pm, err
 	}
-	if pm.TopProducts, err = s.repo.groupProducts("name", startTs, endTs, city, region, 15); err != nil {
+	if pm.TopProducts, err = s.repo.groupProducts("name", startTs, endTs, f, 15); err != nil {
 		return pm, err
 	}
-	if pm.ByCategory, err = s.repo.groupProducts("category", startTs, endTs, city, region, 12); err != nil {
+	if pm.ByCategory, err = s.repo.groupProducts("category", startTs, endTs, f, 12); err != nil {
 		return pm, err
 	}
-	if pm.ByGender, err = s.repo.groupProducts("gender", startTs, endTs, city, region, 6); err != nil {
+	if pm.ByGender, err = s.repo.groupProducts("gender", startTs, endTs, f, 6); err != nil {
 		return pm, err
 	}
-	if pm.ByBrand, err = s.repo.groupProducts("brand", startTs, endTs, city, region, 8); err != nil {
+	if pm.ByBrand, err = s.repo.groupProducts("brand", startTs, endTs, f, 8); err != nil {
 		return pm, err
 	}
 	pm.ensureNonNil()

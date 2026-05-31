@@ -95,6 +95,8 @@ export interface FunnelStep {
   key: string;
   label: string;
   orders: number;
+  revenue: number;
+  units: number;
   fromStart: number;
   fromPrev: number;
 }
@@ -144,4 +146,91 @@ export interface ImportResult {
   itemsImported: number;
   periodStart: string | null;
   periodEnd: string | null;
+}
+
+export interface LogisticsSummary {
+  orders: number;
+  revenue: number;
+  paidOrders: number;
+  paidRate: number;
+  deliveryTotal: number;
+  avgDelivery: number;
+  freeOrders: number;
+  freeDeliveryRate: number;
+}
+
+export interface LogisticsServiceRow {
+  name: string;
+  orders: number;
+  share: number;
+  paidOrders: number;
+  paidRate: number;
+  revenue: number;
+  deliveryTotal: number;
+  avgDelivery: number;
+  freeOrders: number;
+  freeDeliveryRate: number;
+}
+
+export interface LogisticsCityRow {
+  name: string;
+  isPilot: boolean;
+  orders: number;
+  share: number;
+  paidOrders: number;
+  paidRate: number;
+  revenue: number;
+  deliveryTotal: number;
+  avgDelivery: number;
+  freeOrders: number;
+  freeDeliveryRate: number;
+}
+
+export interface LogisticsCohorts {
+  pilot: LogisticsSummary;
+  control: LogisticsSummary;
+}
+
+export interface LogisticsWeekPoint {
+  week: string;
+  orders: number;
+  netOrders: number;
+  paidOrders: number;
+  revenue: number;
+  units: number;
+  aov: number;
+  asp: number;
+  upt: number;
+  paidRate: number;
+  avgDelivery: number;
+  freeDeliveryRate: number;
+  deliveryTotal: number;
+}
+
+export interface PeriodLogistics {
+  summary: LogisticsSummary;
+  byService: LogisticsServiceRow[];
+  byCity: LogisticsCityRow[];
+  cohorts?: LogisticsCohorts;
+  series: LogisticsWeekPoint[];
+}
+
+export interface LogisticsSeriesGroup {
+  name: string;
+  points: LogisticsWeekPoint[];
+}
+
+export interface LogisticsDynamics {
+  period: Range;
+  weeks: string[];
+  groups: LogisticsSeriesGroup[];
+}
+
+export interface LogisticsReport {
+  period: Range;
+  previous: Range;
+  current: PeriodLogistics;
+  prev: PeriodLogistics;
+  pilotCities: string[];
+  pilotStart?: string;
 }

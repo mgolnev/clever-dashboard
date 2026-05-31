@@ -12,8 +12,10 @@ type Stage struct {
 	Key       string  `json:"key"`
 	Label     string  `json:"label"`
 	Orders    int     `json:"orders"`
-	FromStart float64 `json:"fromStart"` // % от гросс
-	FromPrev  float64 `json:"fromPrev"`  // % шага от предыдущей стадии
+	Revenue   int     `json:"revenue"`   // сумма total_amount заказов, дошедших до стадии
+	Units     int     `json:"units"`     // сумма позиций (qty) тех же заказов
+	FromStart float64 `json:"fromStart"` // % от гросс (по заказам)
+	FromPrev  float64 `json:"fromPrev"`  // % шага от предыдущей стадии (по заказам)
 }
 
 // SegmentRow — воронка в разрезе одного значения справочника.
@@ -21,11 +23,11 @@ type SegmentRow struct {
 	Name          string  `json:"name"`
 	Gross         int     `json:"gross"`
 	Paid          int     `json:"paid"`
-	PaidRate      float64 `json:"paidRate"`      // paid / gross
+	PaidRate      float64 `json:"paidRate"` // paid / gross
 	Completed     int     `json:"completed"`
 	CompletedRate float64 `json:"completedRate"` // completed / gross
 	Canceled      int     `json:"canceled"`
-	CancelRate    float64 `json:"cancelRate"`    // canceled / gross
+	CancelRate    float64 `json:"cancelRate"` // canceled / gross
 	Problems      int     `json:"problems"`
 	Revenue       int     `json:"revenue"`
 }

@@ -30,6 +30,7 @@ const (
 	hProblem   = "Проблема с заказом"
 	hProblemD  = "Описание проблемы с заказом"
 	hCancelR   = "Причина отмены"
+	hCoupon    = "Купоны заказа"
 )
 
 // positionRe вытаскивает позиции из столбца «Позиции»: [offer_id] Название (N шт).
@@ -63,6 +64,7 @@ func MapOrders(records []Record) []model.Order {
 			PaymentSystem:   cleanDict(rec.get(hPayment)),
 			DeliveryService: cleanDict(rec.get(hDelivery)),
 			Channel:         channel(rec.get(hFromApp)),
+			Coupon:          cleanDict(rec.get(hCoupon)),
 			Region:          region,
 			City:            city,
 			LocationRaw:     rec.get(hLocation),

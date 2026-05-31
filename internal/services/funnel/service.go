@@ -18,7 +18,7 @@ func NewService(repo *Repository) *Service { return &Service{repo: repo} }
 
 // Report строит воронку за период [start,end] с опциональным фильтром по городу
 // и/или области. Пустые даты — последняя неделя данных.
-func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
+func (s *Service) Report(start, end string, f Filters) (*Funnel, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
-	c, err := s.repo.reach(startTs, endTs, city, region)
+	c, err := s.repo.reach(startTs, endTs, f)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 		{"channel", "channel", "Канал заказа"},
 		{"region", "region", "Регион"},
 	} {
-		rows, err := s.repo.segment(def.col, startTs, endTs, city, region, 12)
+		rows, err := s.repo.segment(def.col, startTs, endTs, f, 12)
 		if err != nil {
 			return nil, err
 		}
@@ -62,11 +62,11 @@ func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 		segs = append(segs, SegmentGroup{By: def.by, Label: def.label, Rows: rows})
 	}
 
-	topProblems, err := s.repo.topLabeled("problem_desc", startTs, endTs, city, region, 8)
+	topProblems, err := s.repo.topLabeled("problem_desc", startTs, endTs, f, 8)
 	if err != nil {
 		return nil, err
 	}
-	topReasons, err := s.repo.topLabeled("cancel_reason", startTs, endTs, city, region, 8)
+	topReasons, err := s.repo.topLabeled("cancel_reason", startTs, endTs, f, 8)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 	return &Funnel{
 		Period:           Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
 		Stages:           stages,
-		Gross:            c.created,
+		Gross:            c.orders["created"],
 		Canceled:         c.canceled,
 		Returns:          c.returns,
 		Problems:         c.problems,
@@ -96,20 +96,18 @@ func (s *Service) Report(start, end, city, region string) (*Funnel, error) {
 }
 
 func (s *Service) buildStages(c reachCounts) []Stage {
-	vals := map[string]int{
-		"created":    c.created,
-		"paid":       c.paid,
-		"processing": c.processing,
-		"shipped":    c.shipped,
-		"delivered":  c.delivered,
-		"completed":  c.completed,
-	}
 	stages := make([]Stage, 0, len(stageDefs))
-	gross := c.created
+	gross := c.orders["created"]
 	prev := 0
 	for i, def := range stageDefs {
-		v := vals[def.key]
-		st := Stage{Key: def.key, Label: def.label, Orders: v}
+		v := c.orders[def.key]
+		st := Stage{
+			Key:     def.key,
+			Label:   def.label,
+			Orders:  v,
+			Revenue: c.revenue[def.key],
+			Units:   c.units[def.key],
+		}
 		if gross > 0 {
 			st.FromStart = round1(float64(v) / float64(gross) * 100)
 		}

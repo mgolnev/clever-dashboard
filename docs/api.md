@@ -40,10 +40,13 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 { "min": "2025-09-01", "max": "2026-05-28" }
 ```
 
-## `GET /api/cities` · `GET /api/regions`
+## `GET /api/cities` · `GET /api/regions` · `GET /api/channels` · `GET /api/payments` · `GET /api/deliveries` · `GET /api/coupons`
 
-Списки городов и областей/регионов для фильтров, отсортированы по убыванию числа
-заказов. Используются вкладками «Обзор» и «Воронки».
+Списки значений для фильтров (город, область/регион, витрина = канал заказа
+«Приложение»/«Сайт», способ оплаты `payment_system`, способ доставки
+`delivery_service`, промокод `coupon` = поле «Купоны заказа»), отсортированы по
+убыванию числа заказов. Используются всеми вкладками. Промокод заполняется при
+импорте; для существующих БД значения появятся после повторной загрузки выгрузки.
 
 ```json
 [
@@ -52,12 +55,16 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 ]
 ```
 
-## `GET /api/metrics?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>`
+## `GET /api/metrics?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
 
 Метрики за период и за предыдущий период той же длины. Если `start`/`end` не
-заданы — последние 7 дней данных. Необязательные `city` и `region` фильтруют
-заказы по точному совпадению (пустые — без фильтра) и **комбинируются через AND**;
-фильтр применяется и к текущему, и к предыдущему периоду.
+заданы — последние 7 дней данных. Необязательные `city`, `region`, `channel`
+(витрина: «Приложение»/«Сайт»), `payment` (способ оплаты), `delivery` (способ
+доставки) и `coupon` (промокод) поддерживают **мультивыбор**: список значений
+через запятую (например `city=Киров,Казань`). Внутри списка — логика **ИЛИ**
+(`IN`), между разными фильтрами — **И** (AND). Пустые — без фильтра. Фильтр
+применяется и к текущему, и к предыдущему периоду. Те же фильтры поддерживают
+`/api/funnel`, `/api/logistics` и `/api/dynamics`.
 
 Структура ответа:
 
@@ -124,22 +131,92 @@ UI показывает долю стадии от «Оформлено» для
 предоплате он ≈100%), но его дополнение — «Возврат опл.» — показывает реальные
 возвраты/невыкуп после оплаты.
 
-## `GET /api/funnel?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>`
+## `GET /api/logistics?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>`
+
+Метрики доставки для пилота «бесплатная доставка / без порога». Структура как у
+`/api/metrics`: текущий и предыдущий период той же длины, те же фильтры `city` /
+`region`.
+
+```jsonc
+{
+  "period": { "start": "...", "end": "...", "days": 7 },
+  "previous": { "start": "...", "end": "...", "days": 7 },
+  "pilotCities": ["Пермь", "Киров"],  // из LOGISTICS_PILOT_CITIES
+  "pilotStart": "2026-06-01",         // из LOGISTICS_PILOT_START (опционально)
+  "current": {
+    "summary": {
+      "orders": 0, "revenue": 0, "paidOrders": 0, "paidRate": 0,
+      "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0
+    },
+    "byService": [{ "name": "...", "orders": 0, "share": 0, "paidOrders": 0, "paidRate": 0,
+      "revenue": 0, "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0 }],
+    "byCity": [{ "name": "...", "isPilot": true, "orders": 0, "share": 0, "paidOrders": 0,
+      "paidRate": 0, "revenue": 0, "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0 }],
+    "cohorts": { "pilot": { ...summary }, "control": { ...summary } },
+    "series": [{ "week": "2026-05-19", "orders": 0, "netOrders": 0, "paidOrders": 0,
+      "revenue": 0, "units": 0, "aov": 0, "asp": 0, "upt": 0, "paidRate": 0,
+      "avgDelivery": 0, "freeDeliveryRate": 0, "deliveryTotal": 0 }]
+  },
+  "prev": { ... }
+}
+```
+
+- `orders` — гросс-заказы периода; `revenue` — сумма `total_amount` не отменённых.
+- `paidRate` — оплаченные / гросс (%), прокси «конверсии» в данных Битрикса.
+- `avgDelivery` — среднее `delivery_cost` на заказ; `freeDeliveryRate` — доля с
+  `delivery_cost = 0`.
+- `share` — доля заказов сегмента от всех заказов периода (службы — от суммы
+  показанных служб, города — от суммы показанных городов).
+- `byService[].paidRate` / `byCity[].paidRate` — оплаченные / заказы сегмента (%).
+- `cohorts` — только если задан `LOGISTICS_PILOT_CITIES`: пилотные города vs
+  остальные (с учётом фильтра `region`, без фильтра `city`).
+- `series` — недельные бакеты (начало недели в поле `week`) со всеми метриками
+  (`orders`, `paidOrders`, `revenue`, `units`, `aov`, `asp`, `upt`, `paidRate`,
+  `avgDelivery`, `freeDeliveryRate`); UI переключает их в графике динамики.
+  `aov`/`upt` считаются от не отменённых (`netOrders`), `asp` — выручка позиций /
+  проданные единицы.
+
+## `GET /api/dynamics?start=YYYY-MM-DD&end=YYYY-MM-DD&groupBy=<измерение>&<фильтры>`
+
+Недельная динамика в разрезе измерения (для вкладки «Динамика»). `groupBy` —
+одно из `city` / `region` / `delivery` / `payment` / `channel` / `coupon`. Поддерживает те же
+фильтры (`city`/`region`/`channel`/`payment`/`delivery`, мультивыбор). Возвращает
+топ-8 значений измерения по числу заказов; точки каждого значения выровнены по
+общему списку недель (`weeks`), пропуски — нулевые точки. Каждая точка содержит
+тот же набор метрик, что и `series` (заказы/оплаты/выручка/товары/чек/ASP/UPT/
+ср. доставка/бесплатно %), поэтому переключение метрики на фронте не требует
+повторного запроса.
+
+```jsonc
+{
+  "period": { "start": "...", "end": "...", "days": 7 },
+  "weeks": ["2026-05-11", "2026-05-18"],
+  "groups": [
+    { "name": "Москва", "points": [ { "week": "2026-05-11", "orders": 0, /* ... */ } ] },
+    { "name": "Киров",  "points": [ /* ... выровнены по weeks ... */ ] }
+  ]
+}
+```
+
+## `GET /api/funnel?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
 
 Воронка пути заказа за период. Пустые даты — последняя неделя данных.
-Необязательные `city` и `region` фильтруют все стадии, разрезы и топы
-(комбинируются через AND).
+Необязательные `city`, `region`, `channel`, `payment` и `delivery` поддерживают
+мультивыбор (список через запятую): внутри списка — `IN` (ИЛИ), между фильтрами —
+AND. Фильтруют все стадии, разрезы и топы.
+
+Каждая стадия содержит, кроме `orders`, кумулятивную `revenue` (сумма
+`total_amount` заказов, дошедших до стадии) и `units` (сумма позиций `qty` тех же
+заказов). Фронт переключает отображение воронки по этим метрикам; `fromStart`/
+`fromPrev` в ответе считаются по заказам.
 
 ```jsonc
 {
   "period": { "start": "...", "end": "...", "days": 7 },
   "stages": [   // кумулятивные стадии: заказ дошёл хотя бы до стадии
-    { "key": "created",    "label": "Создан (гросс)",     "orders": 426, "fromStart": 100, "fromPrev": 100 },
-    { "key": "paid",       "label": "Оплачен",            "orders": 300, "fromStart": 70.4, "fromPrev": 70.4 },
-    { "key": "processing", "label": "В сборке/обработке",  "orders": 301, "fromStart": 70.7, "fromPrev": 100.3 },
-    { "key": "shipped",    "label": "Отправлен",          "orders": 288, "fromStart": 67.6, "fromPrev": 95.7 },
-    { "key": "delivered",  "label": "Доставлен в ПВЗ",     "orders": 200, "fromStart": 46.9, "fromPrev": 69.4 },
-    { "key": "completed",  "label": "Выполнен (выкуп)",    "orders": 170, "fromStart": 39.9, "fromPrev": 85 }
+    { "key": "created", "label": "Создан (гросс)", "orders": 426, "revenue": 2100000, "units": 1680, "fromStart": 100, "fromPrev": 100 },
+    { "key": "paid",    "label": "Оплачен",        "orders": 300, "revenue": 1550000, "units": 1210, "fromStart": 70.4, "fromPrev": 70.4 }
+    // ... processing | shipped | delivered | completed
   ],
   "gross": 426, "canceled": 126, "returns": 8, "problems": 12, "canceledNoReason": 109,
   "segments": [  // by: payment | delivery | channel | region

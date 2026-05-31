@@ -46,6 +46,7 @@ func (d *DB) Migrate() error {
 			payment_system TEXT,
 			delivery_service TEXT,
 			channel TEXT,
+			coupon TEXT,
 			region TEXT,
 			city TEXT,
 			location_raw TEXT,
@@ -90,10 +91,17 @@ func (d *DB) Migrate() error {
 		fmt.Sprintf("ALTER TABLE orders ADD COLUMN has_problem %s NOT NULL DEFAULT 0", boolType),
 		"ALTER TABLE orders ADD COLUMN problem_desc TEXT",
 		"ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
+		"ALTER TABLE orders ADD COLUMN coupon TEXT",
 	} {
 		if _, err := d.Exec(alter); err != nil && !isDuplicateColumn(err) {
 			return fmt.Errorf("migrate alter: %w\nstmt: %s", err, alter)
 		}
+	}
+
+	// Индексы по колонкам, добавляемым через ALTER (создаём после ALTER, чтобы
+	// колонка уже существовала на старых БД).
+	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_coupon ON orders(coupon)`); err != nil {
+		return fmt.Errorf("migrate index: %w", err)
 	}
 	return nil
 }

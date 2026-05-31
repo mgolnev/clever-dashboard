@@ -6,6 +6,9 @@ import (
 	"io"
 
 	"github.com/clever/clever-dashboard/internal/container"
+	"github.com/clever/clever-dashboard/internal/services/funnel"
+	"github.com/clever/clever-dashboard/internal/services/logistics"
+	"github.com/clever/clever-dashboard/internal/services/metrics"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -22,8 +25,14 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Get("/bounds", h.bounds)
 	api.Get("/cities", h.cities)
 	api.Get("/regions", h.regions)
+	api.Get("/channels", h.channels)
+	api.Get("/payments", h.payments)
+	api.Get("/deliveries", h.deliveries)
+	api.Get("/coupons", h.coupons)
 	api.Get("/metrics", h.metrics)
 	api.Get("/funnel", h.funnel)
+	api.Get("/logistics", h.logistics)
+	api.Get("/dynamics", h.dynamics)
 }
 
 func (h *Handler) health(c *fiber.Ctx) error {
@@ -76,8 +85,47 @@ func (h *Handler) regions(c *fiber.Ctx) error {
 	return c.JSON(regions)
 }
 
+func (h *Handler) channels(c *fiber.Ctx) error {
+	channels, err := h.c.Metrics.Channels()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(channels)
+}
+
+func (h *Handler) payments(c *fiber.Ctx) error {
+	payments, err := h.c.Metrics.Payments()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(payments)
+}
+
+func (h *Handler) deliveries(c *fiber.Ctx) error {
+	deliveries, err := h.c.Metrics.Deliveries()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(deliveries)
+}
+
+func (h *Handler) coupons(c *fiber.Ctx) error {
+	coupons, err := h.c.Metrics.Coupons()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(coupons)
+}
+
 func (h *Handler) metrics(c *fiber.Ctx) error {
-	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), c.Query("city"), c.Query("region"))
+	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), metrics.Filters{
+		City:     c.Query("city"),
+		Region:   c.Query("region"),
+		Channel:  c.Query("channel"),
+		Payment:  c.Query("payment"),
+		Delivery: c.Query("delivery"),
+		Coupon:   c.Query("coupon"),
+	})
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -85,7 +133,44 @@ func (h *Handler) metrics(c *fiber.Ctx) error {
 }
 
 func (h *Handler) funnel(c *fiber.Ctx) error {
-	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), c.Query("city"), c.Query("region"))
+	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), funnel.Filters{
+		City:     c.Query("city"),
+		Region:   c.Query("region"),
+		Channel:  c.Query("channel"),
+		Payment:  c.Query("payment"),
+		Delivery: c.Query("delivery"),
+		Coupon:   c.Query("coupon"),
+	})
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) logistics(c *fiber.Ctx) error {
+	report, err := h.c.Logistics.Report(c.Query("start"), c.Query("end"), logistics.Filters{
+		City:     c.Query("city"),
+		Region:   c.Query("region"),
+		Channel:  c.Query("channel"),
+		Payment:  c.Query("payment"),
+		Delivery: c.Query("delivery"),
+		Coupon:   c.Query("coupon"),
+	})
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) dynamics(c *fiber.Ctx) error {
+	report, err := h.c.Logistics.SeriesBreakdown(c.Query("start"), c.Query("end"), logistics.Filters{
+		City:     c.Query("city"),
+		Region:   c.Query("region"),
+		Channel:  c.Query("channel"),
+		Payment:  c.Query("payment"),
+		Delivery: c.Query("delivery"),
+		Coupon:   c.Query("coupon"),
+	}, c.Query("groupBy"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}

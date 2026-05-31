@@ -21,6 +21,7 @@ type Order struct {
 	PaymentSystem   string      `json:"paymentSystem"`
 	DeliveryService string      `json:"deliveryService"`
 	Channel         string      `json:"channel"`
+	Coupon          string      `json:"coupon"`
 	Region          string      `json:"region"`
 	City            string      `json:"city"`
 	LocationRaw     string      `json:"locationRaw"`

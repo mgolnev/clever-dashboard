@@ -13,20 +13,53 @@ type Repository struct {
 
 func NewRepository(d *db.DB) *Repository { return &Repository{db: d} }
 
-// geoCond возвращает доп. условие WHERE по городу и/или области и его аргументы.
-// prefix — префикс таблицы ("" или "o."). Пустые значения не фильтруют.
-func geoCond(city, region, prefix string) (string, []interface{}) {
+// Filters — сквозные фильтры запроса (город/область/витрина/способ оплаты/способ
+// доставки). Каждое поле — список значений через запятую (мультивыбор).
+type Filters struct {
+	City     string
+	Region   string
+	Channel  string
+	Payment  string
+	Delivery string
+	Coupon   string
+}
+
+// geoCond возвращает доп. условие WHERE по фильтрам и его аргументы. Внутри
+// одного поля — логика ИЛИ (IN), между разными полями — И. prefix — префикс
+// таблицы ("" или "o."). Пустые значения не фильтруют.
+func geoCond(f Filters, prefix string) (string, []interface{}) {
 	var sb strings.Builder
 	var args []interface{}
-	if strings.TrimSpace(city) != "" {
-		sb.WriteString(" AND " + prefix + "city = ?")
-		args = append(args, city)
+	addIn := func(col, raw string) {
+		vals := splitCSV(raw)
+		if len(vals) == 0 {
+			return
+		}
+		ph := make([]string, len(vals))
+		for i, v := range vals {
+			ph[i] = "?"
+			args = append(args, v)
+		}
+		sb.WriteString(" AND " + prefix + col + " IN (" + strings.Join(ph, ", ") + ")")
 	}
-	if strings.TrimSpace(region) != "" {
-		sb.WriteString(" AND " + prefix + "region = ?")
-		args = append(args, region)
-	}
+	addIn("city", f.City)
+	addIn("region", f.Region)
+	addIn("channel", f.Channel)
+	addIn("payment_system", f.Payment)
+	addIn("delivery_service", f.Delivery)
+	addIn("coupon", f.Coupon)
 	return sb.String(), args
+}
+
+// splitCSV разбивает строку значений через запятую: тримит, отбрасывает пустые.
+func splitCSV(raw string) []string {
+	var out []string
+	for _, p := range strings.Split(raw, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // dataBounds возвращает минимальную и максимальную дату заказов (YYYY-MM-DD).
@@ -51,7 +84,7 @@ func (r *Repository) geoValues(col string) ([]NamedCount, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []NamedCount
+	out := make([]NamedCount, 0)
 	for rows.Next() {
 		var n NamedCount
 		if err := rows.Scan(&n.Name, &n.Orders); err != nil {
@@ -62,12 +95,16 @@ func (r *Repository) geoValues(col string) ([]NamedCount, error) {
 	return out, rows.Err()
 }
 
-func (r *Repository) cities() ([]NamedCount, error)  { return r.geoValues("city") }
-func (r *Repository) regions() ([]NamedCount, error) { return r.geoValues("region") }
+func (r *Repository) cities() ([]NamedCount, error)     { return r.geoValues("city") }
+func (r *Repository) regions() ([]NamedCount, error)    { return r.geoValues("region") }
+func (r *Repository) channels() ([]NamedCount, error)   { return r.geoValues("channel") }
+func (r *Repository) payments() ([]NamedCount, error)   { return r.geoValues("payment_system") }
+func (r *Repository) deliveries() ([]NamedCount, error) { return r.geoValues("delivery_service") }
+func (r *Repository) coupons() ([]NamedCount, error)    { return r.geoValues("coupon") }
 
-func (r *Repository) kpi(start, end, city, region string) (KPI, error) {
+func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	var k KPI
-	cc, cargs := geoCond(city, region, "")
+	cc, cargs := geoCond(f, "")
 	q := r.db.Rebind(`SELECT
 		COUNT(*),
 		COALESCE(SUM(CASE WHEN is_canceled = ` + falseVal(r.db) + ` THEN 1 ELSE 0 END),0),
@@ -87,7 +124,7 @@ func (r *Repository) kpi(start, end, city, region string) (KPI, error) {
 	}
 	// Units и выручка позиций (только не отменённые заказы) — для ASP.
 	var itemRevenue int
-	oc, ocargs := geoCond(city, region, "o.")
+	oc, ocargs := geoCond(f, "o.")
 	uq := r.db.Rebind(`SELECT COALESCE(SUM(oi.qty),0), COALESCE(SUM(oi.line_sum),0)
 		FROM order_items oi JOIN orders o ON o.order_number = oi.order_number
 		WHERE o.created_at >= ? AND o.created_at <= ? AND o.is_canceled = ` + falseVal(r.db) + oc)
@@ -168,8 +205,8 @@ func makeStage(orders, revenue, units int) StageKPI {
 	return s
 }
 
-func (r *Repository) funnel(start, end, city, region string) ([]FunnelStage, error) {
-	cc, cargs := geoCond(city, region, "")
+func (r *Repository) funnel(start, end string, f Filters) ([]FunnelStage, error) {
+	cc, cargs := geoCond(f, "")
 	q := r.db.Rebind(`SELECT status_stage, COUNT(*) FROM orders
 		WHERE created_at >= ? AND created_at <= ?` + cc + ` GROUP BY status_stage`)
 	rows, err := r.db.Query(q, append([]interface{}{start, end}, cargs...)...)
@@ -200,8 +237,8 @@ func (r *Repository) funnel(start, end, city, region string) ([]FunnelStage, err
 }
 
 // groupOrders — срез по колонке заказов (channel/payment_system/...).
-func (r *Repository) groupOrders(col, start, end, city, region string, limit int) ([]NamedCount, error) {
-	cc, cargs := geoCond(city, region, "")
+func (r *Repository) groupOrders(col, start, end string, f Filters, limit int) ([]NamedCount, error) {
+	cc, cargs := geoCond(f, "")
 	q := r.db.Rebind(fmt.Sprintf(`SELECT COALESCE(NULLIF(%[1]s,''),'—') AS label, COUNT(*) AS orders,
 		COALESCE(SUM(CASE WHEN is_canceled = `+falseVal(r.db)+` THEN total_amount ELSE 0 END),0) AS revenue
 		FROM orders WHERE created_at >= ? AND created_at <= ?`+cc+`
@@ -223,8 +260,8 @@ func (r *Repository) groupOrders(col, start, end, city, region string, limit int
 }
 
 // groupProducts — товарная агрегация по колонке позиций (name/category/gender/brand).
-func (r *Repository) groupProducts(col, start, end, city, region string, limit int) ([]ProductRow, error) {
-	oc, ocargs := geoCond(city, region, "o.")
+func (r *Repository) groupProducts(col, start, end string, f Filters, limit int) ([]ProductRow, error) {
+	oc, ocargs := geoCond(f, "o.")
 	q := r.db.Rebind(fmt.Sprintf(`SELECT COALESCE(NULLIF(oi.%[1]s,''),'—') AS label,
 		COALESCE(SUM(oi.qty),0) AS units,
 		COUNT(DISTINCT oi.order_number) AS orders,

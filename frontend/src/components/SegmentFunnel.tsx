@@ -49,7 +49,8 @@ export default function SegmentFunnel({ segments }: Props) {
               <th className="px-2 py-2 text-right font-medium">Гросс</th>
               <th className="px-2 py-2 text-right font-medium">Оплата</th>
               <th className="px-2 py-2 text-right font-medium">Отмена</th>
-              <th className="px-2 py-2 text-right font-medium">Выкуп</th>
+              <th className="px-2 py-2 text-right font-medium" title="Выкуп от оформленных (Выполнен / Гросс)">G2N</th>
+              <th className="px-2 py-2 text-right font-medium" title="Выкуп от оплаченных (Выполнен / Оплачено)">P2N</th>
               <th className="px-2 py-2 text-right font-medium">Выручка</th>
             </tr>
           </thead>
@@ -71,7 +72,17 @@ export default function SegmentFunnel({ segments }: Props) {
                 <td className={`px-2 py-2 text-right font-medium tabular-nums ${rateColor(r.cancelRate, "bad")}`}>
                   {pct(r.cancelRate)}
                 </td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-600">{pct(r.completedRate)}</td>
+                <td className={`px-2 py-2 text-right font-medium tabular-nums ${rateColor(r.completedRate, "good")}`}>
+                  {pct(r.completedRate)}
+                </td>
+                {(() => {
+                  const p2n = r.paid > 0 ? (r.completed / r.paid) * 100 : 0;
+                  return (
+                    <td className={`px-2 py-2 text-right font-medium tabular-nums ${rateColor(p2n, "good")}`}>
+                      {r.paid > 0 ? pct(p2n) : "—"}
+                    </td>
+                  );
+                })()}
                 <td className="px-2 py-2 text-right tabular-nums text-slate-500">{rub(r.revenue)}</td>
               </tr>
             ))}
@@ -79,7 +90,8 @@ export default function SegmentFunnel({ segments }: Props) {
         </table>
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Оплата = оплачено / гросс. Отмена = отменено / гросс. Выкуп = «Выполнен» / гросс. Цвет: зелёный — здорово, красный — проблема.
+        Оплата = оплачено / гросс. Отмена = отменено / гросс. G2N = «Выполнен» / гросс (выкуп от оформленных).
+        P2N = «Выполнен» / оплачено (выкуп от оплаченных). Цвет: зелёный — здорово, красный — проблема.
       </p>
     </div>
   );
