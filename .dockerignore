@@ -1,0 +1,29 @@
+# VCS / IDE
+.git
+.gitignore
+.github
+*.md
+docs
+
+# Go build artifacts
+bin
+*.test
+*.out
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/build
+frontend/.vite
+frontend/*.tsbuildinfo
+
+# Local data / large exports
+data
+uploads
+*.db
+*.sqlite
+sale_order.xls
+
+# Env
+.env
+.env.local

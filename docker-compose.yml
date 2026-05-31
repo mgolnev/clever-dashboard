@@ -1,0 +1,43 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clever-dashboard:latest
+    container_name: clever-dashboard
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      STATIC_DIR: /app/web
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - clever-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Опциональный Postgres. Включается профилем: docker compose --profile postgres up -d
+  # В .env задайте DB_DRIVER=postgres и DB_DSN=postgres://clever:clever@db:5432/clever?sslmode=disable
+  db:
+    image: postgres:16-alpine
+    container_name: clever-db
+    restart: unless-stopped
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clever}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clever}
+      POSTGRES_DB: ${POSTGRES_DB:-clever}
+    volumes:
+      - clever-pg:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+volumes:
+  clever-data:
+  clever-pg:

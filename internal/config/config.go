@@ -17,6 +17,10 @@ type Config struct {
 	LogisticsPilotCities []string
 	// LogisticsPilotStart — дата старта пилота YYYY-MM-DD (опционально, для UI).
 	LogisticsPilotStart string
+	// StaticDir — каталог собранного фронтенда (Vite dist). Если задан и
+	// существует, backend отдаёт SPA с этого пути (single-binary деплой). В dev
+	// пусто — фронт обслуживает Vite на :3000 с прокси на API.
+	StaticDir string
 }
 
 func Load() Config {
@@ -35,6 +39,7 @@ func Load() Config {
 		DBDSN:                dsn,
 		LogisticsPilotCities: splitEnvList(os.Getenv("LOGISTICS_PILOT_CITIES")),
 		LogisticsPilotStart:  strings.TrimSpace(os.Getenv("LOGISTICS_PILOT_START")),
+		StaticDir:            strings.TrimSpace(os.Getenv("STATIC_DIR")),
 	}
 }
 

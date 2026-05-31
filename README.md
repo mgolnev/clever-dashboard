@@ -19,8 +19,11 @@ MVP-1 закрывает **источник «Битрикс» через заг
 - Вкладка **«Воронки»**: путь заказа (гросс → оплата → сборка → отправка → доставка → выкуп)
   с точками отвала и разрезами по оплате/доставке/каналу/региону, топ проблем сборки и причин отмены
   (см. [docs/funnel-analysis.md](docs/funnel-analysis.md)).
-- Вкладка **«Логистика»**: KPI доставки, пилот vs контроль по городам, службы, недельная динамика
-  (`LOGISTICS_PILOT_CITIES`, `LOGISTICS_PILOT_START` — см. [docs/api.md](docs/api.md)).
+- Вкладка **«Логистика»**: KPI доставки, службы, города (доля, оплаты, итоги).
+- Вкладка **«Динамика»**: недельные графики с переключателем метрик и разрезами
+  (города/доставка/оплата/витрина/промокод) с легендой.
+- Сквозные фильтры (мультивыбор): город, область, витрина, способ оплаты,
+  способ доставки, **промокод** (поле «Купоны заказа»).
 
 ## Стек
 
@@ -49,6 +52,26 @@ export DB_DSN="postgres://user:pass@localhost:5432/clever_dashboard?sslmode=disa
 make run
 ```
 
+## Развёртывание (production)
+
+В проде backend отдаёт API и собранный фронт (SPA) с одного порта — единый
+артефакт. Рекомендуется Docker за обратным прокси с TLS.
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+curl -s http://127.0.0.1:8080/api/health   # {"status":"ok"}
+```
+
+Подробно (Docker, образ из GHCR, nginx/Caddy для `app.onreza.ru`, Postgres,
+обновление): [docs/deploy.md](docs/deploy.md).
+
+Локально единый бинарь со статикой:
+
+```bash
+make build-all   # сборка фронта (frontend/dist) + бэка, запуск на :8080
+```
+
 ## Структура
 
 ```
@@ -61,10 +84,12 @@ internal/normalize    — нормализация (деньги, гео, ста
 internal/services/orders   — импорт и витрина заказов
 internal/services/metrics  — KPI, срезы, сравнение периодов
 internal/services/funnel   — воронка пути заказа и разрезы
-internal/handlers     — HTTP-слой (Fiber)
+internal/services/logistics — логистика и недельная динамика
+internal/handlers     — HTTP-слой (Fiber), отдача SPA в проде
 internal/container    — DI
-frontend/             — React + TS + Tailwind
-docs/                 — архитектура, API, ADR
+frontend/             — React + TS + Tailwind (Vite)
+docs/                 — архитектура, API, деплой, ADR
+Dockerfile, docker-compose.yml, .env.example — деплой
 ```
 
 ## Документация
@@ -74,6 +99,7 @@ docs/                 — архитектура, API, ADR
 - [docs/funnel-analysis.md](docs/funnel-analysis.md) — модель воронки и аналитические выводы.
 - [docs/import-bitrix.md](docs/import-bitrix.md) — контракт импорта и разбор позиций.
 - [docs/api.md](docs/api.md) — HTTP API.
+- [docs/deploy.md](docs/deploy.md) — развёртывание (Docker, прокси, app.onreza.ru).
 - [docs/adr/README.md](docs/adr/README.md) — архитектурные решения.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — план развития.
 

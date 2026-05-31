@@ -2,6 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/clever/clever-dashboard/internal/config"
 	"github.com/clever/clever-dashboard/internal/container"
@@ -30,10 +33,31 @@ func main() {
 
 	handlers.New(c).Register(app)
 
-	log.Printf("CLEVER Dashboard backend на :%s (db=%s)", cfg.Port, cfg.DBDriver)
+	if cfg.StaticDir != "" {
+		serveStatic(app, cfg.StaticDir)
+	}
+
+	log.Printf("CLEVER Dashboard backend на :%s (db=%s, static=%q)", cfg.Port, cfg.DBDriver, cfg.StaticDir)
 	if err := app.Listen(":" + cfg.Port); err != nil {
 		log.Fatalf("listen: %v", err)
 	}
+}
+
+// serveStatic отдаёт собранный фронтенд (Vite dist) как SPA: статические файлы
+// напрямую, а любой неизвестный GET-маршрут (кроме /api) — index.html.
+func serveStatic(app *fiber.App, dir string) {
+	index := filepath.Join(dir, "index.html")
+	if _, err := os.Stat(index); err != nil {
+		log.Printf("STATIC_DIR=%q задан, но %s не найден — фронт не будет обслуживаться", dir, index)
+		return
+	}
+	app.Static("/", dir, fiber.Static{Index: "index.html"})
+	app.Use(func(c *fiber.Ctx) error {
+		if c.Method() != fiber.MethodGet || strings.HasPrefix(c.Path(), "/api") {
+			return fiber.ErrNotFound
+		}
+		return c.SendFile(index)
+	})
 }
 
 func errorHandler(c *fiber.Ctx, err error) error {
