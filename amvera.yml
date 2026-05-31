@@ -9,7 +9,8 @@ build:
 
 run:
   # Порт, который слушает приложение внутри контейнера (cfg.Port / EXPOSE).
-  containerPort: "8080"
+  # Число без кавычек — для нестандартных портов так в доке Amvera.
+  containerPort: 8080
   # Постоянное хранилище: сюда пишется SQLite (DB_DSN=/data/clever.db).
   # Данные переживают пересборку/обновление проекта.
   persistenceMount: /data
