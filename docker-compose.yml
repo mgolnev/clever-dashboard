@@ -14,7 +14,7 @@ services:
     ports:
       - "${APP_PORT:-8080}:8080"
     volumes:
-      - clever-data:/app/data
+      - clever-data:/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
       interval: 30s

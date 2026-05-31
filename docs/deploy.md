@@ -1,13 +1,29 @@
-# Развёртывание (app.onreza.ru)
+# Развёртывание
 
 Приложение собирается в **единый артефакт**: Go-бэкенд отдаёт API (`/api/*`) и
-собранный фронтенд (SPA) с одного порта. Рекомендуемый способ — Docker за
-обратным прокси (nginx/Caddy) с TLS.
+собранный фронтенд (SPA) с одного порта (single-binary в одном контейнере).
+
+Способы (по возрастанию ручной работы):
+
+1. **Amvera Cloud** — деплой по `git push`, платформа сама собирает наш
+   `Dockerfile`, выдаёт HTTPS-домен и постоянное хранилище. См.
+   [раздел Amvera](#деплой-на-amvera-cloud) ниже. **Рекомендуется**, если нет
+   своего сервера.
+2. **Свой VPS** — Docker за обратным прокси (Caddy/nginx) с TLS.
+3. **Готовый образ из GHCR** — `docker run` где угодно.
+
+> Важно: **Onreza** (Vercel-подобная платформа) умеет только статику и
+> Node.js/Bun — Go-рантайма/Dockerfile там нет, поэтому весь бэкенд на ней не
+> запускается. На Onreza можно держать максимум статику фронта и проксировать
+> `/api/*` на внешний бэкенд через Routing Rules → Rewrites.
 
 ## Состав
 
 - `Dockerfile` — multi-stage: сборка фронта (Vite), сборка статического Go-бинаря
   (без CGO, SQLite на чистом Go), компактный alpine-рантайм.
+- `docker-entrypoint.sh` — стартует от root, чинит права на смонтированный `/data`
+  и сбрасывает привилегии до пользователя `app`.
+- `amvera.yml` — конфиг для Amvera Cloud (Docker, порт 8080, хранилище `/data`).
 - `docker-compose.yml` — сервис `app` (+ опциональный `postgres` по профилю).
 - `.env.example` — шаблон переменных окружения.
 - CI: `.github/workflows/ci.yml` (тесты/сборка), `docker-publish.yml`
@@ -19,15 +35,43 @@
 |------------|-----------|-------------------|
 | `PORT` | Порт HTTP-сервера | `8080` |
 | `DB_DRIVER` | `sqlite` или `postgres` | `sqlite` |
-| `DB_DSN` | Путь к файлу SQLite или DSN Postgres | `/app/data/clever.db` |
+| `DB_DSN` | Путь к файлу SQLite или DSN Postgres | `/data/clever.db` |
 | `STATIC_DIR` | Каталог собранного фронта | `/app/web` |
 | `LOGISTICS_PILOT_CITIES` | Города пилота (через запятую) | — |
 | `LOGISTICS_PILOT_START` | Дата старта пилота `YYYY-MM-DD` | — |
 
-SQLite-файл лежит в volume `clever-data` (`/app/data`) — данные переживают
-пересоздание контейнера.
+SQLite-файл лежит в постоянном хранилище `/data` (volume `clever-data` в Docker,
+`persistenceMount` в Amvera) — данные переживают пересоздание/пересборку.
 
-## Деплой на сервер
+## Деплой на Amvera Cloud
+
+Amvera собирает наш `Dockerfile` сама; конфиг — `amvera.yml` (уже в репозитории):
+порт `8080`, постоянное хранилище `/data` (туда пишется SQLite).
+
+1. Зарегистрируйтесь на [amvera.ru](https://amvera.ru), создайте проект
+   (тип — **из Git / загрузка**).
+2. Залейте код в git-репозиторий Amvera (или подключите внешний). По первому
+   пушу Amvera найдёт `amvera.yml`/`Dockerfile`, соберёт и запустит контейнер:
+
+   ```bash
+   git remote add amvera https://git.amvera.ru/<username>/<project>.git
+   git push amvera main
+   ```
+
+3. В разделе **Настройки → Домены** привяжите домен:
+   - бесплатный поддомен Amvera (HTTPS «из коробки»), либо
+   - свой домен (например `app.onreza.ru`) — добавьте указанную DNS-запись
+     (CNAME/A) у регистратора зоны.
+4. Переменные окружения (опционально) — в **Настройки → Переменные**:
+   `LOGISTICS_PILOT_CITIES`, `LOGISTICS_PILOT_START`. Менять `DB_DSN` не нужно —
+   дефолт `/data/clever.db` уже указывает в постоянное хранилище.
+5. После старта откройте домен и загрузите выгрузку Битрикса через UI.
+
+> SQLite пишется **только** в `/data` — это требование Amvera (папка `data/` в
+> коде и хранилище `/data` — разные вещи; данные вне `/data` теряются при
+> обновлении проекта).
+
+## Деплой на свой VPS
 
 ```bash
 # 1. На сервере: клонировать репозиторий
@@ -56,7 +100,7 @@ curl -s http://127.0.0.1:8080/api/health   # {"status":"ok"}
 ```bash
 docker run -d --name clever-dashboard \
   -p 8080:8080 \
-  -v clever-data:/app/data \
+  -v clever-data:/data \
   --restart unless-stopped \
   ghcr.io/mgolnev/clever-dashboard:latest
 ```

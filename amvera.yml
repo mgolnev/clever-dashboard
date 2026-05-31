@@ -1,0 +1,14 @@
+meta:
+  environment: docker
+  toolchain: docker
+
+build:
+  dockerfile: Dockerfile
+  skip: false
+
+run:
+  # Порт, который слушает приложение внутри контейнера (cfg.Port / EXPOSE).
+  containerPort: "8080"
+  # Постоянное хранилище: сюда пишется SQLite (DB_DSN=/data/clever.db).
+  # Данные переживают пересборку/обновление проекта.
+  persistenceMount: /data
