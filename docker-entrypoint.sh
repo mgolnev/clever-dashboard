@@ -15,4 +15,10 @@ if [ -n "$DATA_DIR" ]; then
   chown -R app:app "$DATA_DIR" 2>/dev/null || true
 fi
 
+# Amvera по умолчанию выставляет PORT=80; для не-root процесса нужен >=1024.
+export PORT="${PORT:-8080}"
+case "$PORT" in
+  80|443) PORT=8080 ;;
+esac
+
 exec su-exec app:app /app/server

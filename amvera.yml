@@ -8,7 +8,6 @@ build:
   skip: false
 
 run:
-  # Amvera по умолчанию проксирует порт 80; в образе PORT=80 (setcap на бинарь).
-  containerPort: 80
-  # Постоянное хранилище: сюда пишется SQLite (DB_DSN=/data/clever.db).
+  # Приложение слушает :8080 (непривилегированный порт; setcap на Amvera не работает).
+  containerPort: 8080
   persistenceMount: /data
