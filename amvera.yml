@@ -8,9 +8,7 @@ build:
   skip: false
 
 run:
-  # Порт, который слушает приложение внутри контейнера (cfg.Port / EXPOSE).
-  # Число без кавычек — для нестандартных портов так в доке Amvera.
-  containerPort: 8080
+  # Amvera по умолчанию проксирует порт 80; в образе PORT=80 (setcap на бинарь).
+  containerPort: 80
   # Постоянное хранилище: сюда пишется SQLite (DB_DSN=/data/clever.db).
-  # Данные переживают пересборку/обновление проекта.
   persistenceMount: /data
