@@ -8,6 +8,7 @@ build:
   skip: false
 
 run:
-  # Приложение слушает :8080 (непривилегированный порт; setcap на Amvera не работает).
-  containerPort: 8080
+  # Приложение слушает :80 (дефолт Amvera, процесс от root). Порт совпадает
+  # с servicePort/containerPort по умолчанию — внешний трафик доходит без доп. настройки.
+  containerPort: 80
   persistenceMount: /data

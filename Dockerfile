@@ -18,27 +18,26 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server 
 
 # --- Stage 3: рантайм ---
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata wget su-exec && adduser -D -u 10001 app
+RUN apk add --no-cache ca-certificates tzdata wget
 WORKDIR /app
 COPY --from=backend /out/server /app/server
 COPY --from=frontend /app/frontend/dist /app/web
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # /data — постоянное хранилище (volume в Docker, persistenceMount в Amvera).
-# PORT=8080: непривилегированный порт (setcap на Amvera не работает). Роутинг — containerPort в amvera.yml.
-ENV PORT=8080 \
+# PORT=80: Amvera по умолчанию маршрутизирует входной трафик на порт 80
+# контейнера; процесс запускается от root (штатный паттерн Amvera), поэтому
+# bind на привилегированный порт доступен без setcap.
+ENV PORT=80 \
     DB_DRIVER=sqlite \
     DB_DSN=/data/clever.db \
     STATIC_DIR=/app/web
 
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-    && mkdir -p /data && chown -R app:app /app /data
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data
 VOLUME ["/data"]
-EXPOSE 8080
+EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-    CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
+    CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" || exit 1
 
-# entrypoint стартует от root: чинит права на смонтированный /data и
-# сбрасывает привилегии до пользователя app (uid 10001).
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
