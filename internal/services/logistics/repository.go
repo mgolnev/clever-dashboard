@@ -88,6 +88,24 @@ func weekExpr(d *db.DB, col string) string {
 	return fmt.Sprintf(`strftime('%%Y-%%m-%%d', %s, 'weekday 0', '-6 days')`, col)
 }
 
+// periodExpr — ключ бакета временного ряда (YYYY-MM-DD: день, понедельник недели или 1-е число месяца).
+func periodExpr(d *db.DB, col string, g Granularity) string {
+	switch g {
+	case GranularityDay:
+		if d.IsPostgres() {
+			return fmt.Sprintf(`TO_CHAR(%s::timestamp, 'YYYY-MM-DD')`, col)
+		}
+		return fmt.Sprintf(`strftime('%%Y-%%m-%%d', %s)`, col)
+	case GranularityMonth:
+		if d.IsPostgres() {
+			return fmt.Sprintf(`TO_CHAR(DATE_TRUNC('month', %s::timestamp), 'YYYY-MM-DD')`, col)
+		}
+		return fmt.Sprintf(`strftime('%%Y-%%m-01', %s)`, col)
+	default:
+		return weekExpr(d, col)
+	}
+}
+
 func (r *Repository) dataBounds() (string, string, error) {
 	var min, max *string
 	row := r.db.QueryRow(`SELECT substr(MIN(created_at),1,10), substr(MAX(created_at),1,10) FROM orders WHERE created_at IS NOT NULL`)
@@ -264,9 +282,9 @@ func (r *Repository) byCity(start, end string, f Filters, pilotSet map[string]bo
 // groupCol (city/delivery_service/payment_system/channel). Возвращает топ-limit
 // значений по числу заказов; Points каждого значения выровнены по общему
 // отсортированному списку недель (пропуски заполняются нулями).
-func (r *Repository) seriesBreakdown(start, end string, f Filters, groupCol string, limit int) ([]SeriesGroup, []string, error) {
+func (r *Repository) seriesBreakdown(start, end string, f Filters, groupCol string, limit int, g Granularity) ([]SeriesGroup, []string, error) {
 	cc, cargs := geoCond(f, "")
-	wk := weekExpr(r.db, "created_at")
+	wk := periodExpr(r.db, "created_at", g)
 	gexpr := fmt.Sprintf("COALESCE(NULLIF(%s,''),'—')", groupCol)
 	q := r.db.Rebind(fmt.Sprintf(`SELECT %[1]s AS week, %[2]s AS grp,
 		COUNT(*) AS orders,
@@ -316,7 +334,7 @@ func (r *Repository) seriesBreakdown(start, end string, f Filters, groupCol stri
 
 	// Товары и выручка позиций (по не отменённым) — для ASP/UPT, в том же разрезе.
 	oc, ocargs := geoCond(f, "o.")
-	wkItems := weekExpr(r.db, "o.created_at")
+	wkItems := periodExpr(r.db, "o.created_at", g)
 	gexprO := fmt.Sprintf("COALESCE(NULLIF(o.%s,''),'—')", groupCol)
 	iq := r.db.Rebind(fmt.Sprintf(`SELECT %[1]s AS week, %[2]s AS grp,
 		COALESCE(SUM(oi.qty),0) AS units,
@@ -391,9 +409,9 @@ func (r *Repository) seriesBreakdown(start, end string, f Filters, groupCol stri
 	return groups, weeks, nil
 }
 
-func (r *Repository) series(start, end string, f Filters) ([]WeekPoint, error) {
+func (r *Repository) series(start, end string, f Filters, g Granularity) ([]WeekPoint, error) {
 	cc, cargs := geoCond(f, "")
-	wk := weekExpr(r.db, "created_at")
+	wk := periodExpr(r.db, "created_at", g)
 	q := r.db.Rebind(fmt.Sprintf(`SELECT %s AS week,
 		COUNT(*) AS orders,
 		COALESCE(SUM(CASE WHEN is_canceled = `+falseVal(r.db)+` THEN 1 ELSE 0 END),0) AS net_orders,
@@ -433,7 +451,7 @@ func (r *Repository) series(start, end string, f Filters) ([]WeekPoint, error) {
 
 	// Товары и выручка позиций (по не отменённым) — для ASP/UPT.
 	oc, ocargs := geoCond(f, "o.")
-	wkItems := weekExpr(r.db, "o.created_at")
+	wkItems := periodExpr(r.db, "o.created_at", g)
 	iq := r.db.Rebind(fmt.Sprintf(`SELECT %s AS week,
 		COALESCE(SUM(oi.qty),0) AS units,
 		COALESCE(SUM(oi.line_sum),0) AS item_revenue

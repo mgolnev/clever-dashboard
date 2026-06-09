@@ -1,5 +1,14 @@
 package logistics
 
+// Granularity — шаг группировки временного ряда (день / неделя / месяц).
+type Granularity string
+
+const (
+	GranularityDay   Granularity = "day"
+	GranularityWeek  Granularity = "week"
+	GranularityMonth Granularity = "month"
+)
+
 // Range — границы периода (даты YYYY-MM-DD).
 type Range struct {
 	Start string `json:"start"`

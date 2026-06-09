@@ -8,6 +8,7 @@ export interface StageKPI {
   orders: number;
   revenue: number;
   units: number;
+  customers: number;
   aov: number;
   asp: number;
   upt: number;
@@ -34,6 +35,8 @@ export interface KPI {
   canceledRate: number;
   units: number;
   customers: number;
+  repeatCustomers: number;
+  canceledCustomers: number;
   completed: number;
   terminal: number;
   inTransit: number;
@@ -54,6 +57,17 @@ export interface FunnelStage {
   orders: number;
 }
 
+export interface CustomerRow {
+  name: string;
+  orders: number;
+  revenue: number;
+  paidOrders: number;
+  inTransitOrders: number;
+  completedOrders: number;
+  canceledOrders: number;
+  revenueShare: number;
+}
+
 export interface ProductRow {
   name: string;
   units: number;
@@ -72,6 +86,7 @@ export interface PeriodMetrics {
   byCategory: ProductRow[];
   byGender: ProductRow[];
   byBrand: ProductRow[];
+  topCustomers: CustomerRow[];
 }
 
 export interface Report {

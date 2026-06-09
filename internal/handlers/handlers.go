@@ -155,7 +155,7 @@ func (h *Handler) logistics(c *fiber.Ctx) error {
 		Payment:  c.Query("payment"),
 		Delivery: c.Query("delivery"),
 		Coupon:   c.Query("coupon"),
-	})
+	}, c.Query("granularity"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -170,7 +170,7 @@ func (h *Handler) dynamics(c *fiber.Ctx) error {
 		Payment:  c.Query("payment"),
 		Delivery: c.Query("delivery"),
 		Coupon:   c.Query("coupon"),
-	}, c.Query("groupBy"))
+	}, c.Query("groupBy"), c.Query("granularity"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}

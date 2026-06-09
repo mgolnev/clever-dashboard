@@ -19,8 +19,10 @@ type KPI struct {
 	CanceledOrders int     `json:"canceledOrders"`
 	CanceledRate   float64 `json:"canceledRate"`
 	Units          int     `json:"units"`
-	Customers      int     `json:"customers"`
-	Completed      int     `json:"completed"`      // выкуплено (status_stage=completed)
+	Customers          int     `json:"customers"`
+	RepeatCustomers    int     `json:"repeatCustomers"`    // покупатели с 2+ заказами за период
+	CanceledCustomers  int     `json:"canceledCustomers"`  // покупатели с хотя бы одной отменой
+	Completed          int     `json:"completed"`          // выкуплено (status_stage=completed)
 	Terminal       int     `json:"terminal"`       // заказы в конечном статусе
 	InTransit      int     `json:"inTransit"`      // заказы «в пути» (не дошли до выкупа/отмены)
 	G2N            float64 `json:"g2n"`            // выкуплено / оформлено (гросс), %
@@ -31,9 +33,10 @@ type KPI struct {
 
 // StageKPI — показатели на одной стадии (оформлено/оплачено/выкуплено).
 type StageKPI struct {
-	Orders  int     `json:"orders"`
-	Revenue int     `json:"revenue"`
-	Units   int     `json:"units"`
+	Orders    int     `json:"orders"`
+	Revenue   int     `json:"revenue"`
+	Units     int     `json:"units"`
+	Customers int     `json:"customers"` // уникальные покупатели на стадии
 	AOV     int     `json:"aov"` // средний чек на заказ
 	ASP     int     `json:"asp"` // средняя цена позиции
 	UPT     float64 `json:"upt"` // units per transaction (позиций на заказ)
@@ -73,6 +76,18 @@ type ProductRow struct {
 	Revenue int    `json:"revenue"`
 }
 
+// CustomerRow — агрегат по покупателю за период (для таблицы топ-клиентов).
+type CustomerRow struct {
+	Name            string  `json:"name"`
+	Orders          int     `json:"orders"`
+	Revenue         int     `json:"revenue"`
+	PaidOrders      int     `json:"paidOrders"`
+	InTransitOrders int     `json:"inTransitOrders"`
+	CompletedOrders int     `json:"completedOrders"`
+	CanceledOrders  int     `json:"canceledOrders"`
+	RevenueShare    float64 `json:"revenueShare"` // доля от общей выручки периода, %
+}
+
 // PeriodMetrics — полный набор метрик за один период.
 type PeriodMetrics struct {
 	KPI         KPI           `json:"kpi"`
@@ -84,7 +99,8 @@ type PeriodMetrics struct {
 	TopProducts []ProductRow  `json:"topProducts"`
 	ByCategory  []ProductRow  `json:"byCategory"`
 	ByGender    []ProductRow  `json:"byGender"`
-	ByBrand     []ProductRow  `json:"byBrand"`
+	ByBrand      []ProductRow  `json:"byBrand"`
+	TopCustomers []CustomerRow `json:"topCustomers"`
 }
 
 // Report — отчёт с текущим и предыдущим периодом для сравнения.

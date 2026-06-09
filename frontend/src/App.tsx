@@ -5,13 +5,15 @@ import DateRangeBar from "./components/DateRangeBar";
 import UploadCard from "./components/UploadCard";
 import KpiCards from "./components/KpiCards";
 import Funnel from "./components/Funnel";
+import CustomerKpiCards from "./components/CustomerKpiCards";
+import CustomerTable from "./components/CustomerTable";
 import BreakdownList from "./components/BreakdownList";
 import ProductTable from "./components/ProductTable";
 import FunnelTab from "./components/FunnelTab";
 import LogisticsTab from "./components/LogisticsTab";
 import DynamicsTab from "./components/DynamicsTab";
 
-type Tab = "overview" | "funnels" | "logistics" | "dynamics";
+type Tab = "overview" | "customers" | "funnels" | "logistics" | "dynamics";
 
 function addDays(date: string, days: number): string {
   const d = new Date(date + "T00:00:00");
@@ -143,6 +145,7 @@ export default function App() {
             {(
               [
                 ["overview", "Обзор"],
+                ["customers", "Клиенты"],
                 ["funnels", "Воронки"],
                 ["logistics", "Логистика"],
                 ["dynamics", "Динамика"],
@@ -167,7 +170,7 @@ export default function App() {
               end={end}
               min={bounds?.min}
               max={bounds?.max}
-              previous={tab === "overview" ? report?.previous : undefined}
+              previous={tab === "overview" || tab === "customers" ? report?.previous : undefined}
               cities={cities}
               city={city}
               onCityChange={setCity}
@@ -225,6 +228,13 @@ export default function App() {
           end={end}
           filters={{ city, region, channel, payment, delivery, coupon }}
         />
+      )}
+
+      {tab === "customers" && report && (
+        <div className="space-y-4">
+          <CustomerKpiCards current={report.current.kpi} prev={report.prev.kpi} />
+          <CustomerTable rows={report.current.topCustomers} totalRevenue={report.current.kpi.revenue} />
+        </div>
       )}
 
       {tab === "overview" && report && (

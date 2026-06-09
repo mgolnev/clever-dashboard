@@ -32,8 +32,9 @@ export interface Filters {
   coupon: string[];
 }
 
-function query(start: string, end: string, f: Filters): string {
+function query(start: string, end: string, f: Filters, granularity?: string): string {
   const p = new URLSearchParams({ start, end });
+  if (granularity) p.set("granularity", granularity);
   if (f.city.length) p.set("city", f.city.join(","));
   if (f.region.length) p.set("region", f.region.join(","));
   if (f.channel.length) p.set("channel", f.channel.join(","));
@@ -64,13 +65,13 @@ export const api = {
   funnel: (start: string, end: string, f: Filters) =>
     fetch(`/api/funnel?${query(start, end, f)}`).then((r) => handle<FunnelReport>(r)),
 
-  logistics: (start: string, end: string, f: Filters) =>
-    fetch(`/api/logistics?${query(start, end, f)}`).then((r) => handle<LogisticsReport>(r)),
+  logistics: (start: string, end: string, f: Filters, granularity?: string) =>
+    fetch(`/api/logistics?${query(start, end, f, granularity)}`).then((r) => handle<LogisticsReport>(r)),
 
-  dynamics: (start: string, end: string, f: Filters, groupBy: string) =>
-    fetch(`/api/dynamics?${query(start, end, f)}&groupBy=${encodeURIComponent(groupBy)}`).then((r) =>
-      handle<LogisticsDynamics>(r)
-    ),
+  dynamics: (start: string, end: string, f: Filters, groupBy: string, granularity?: string) =>
+    fetch(
+      `/api/dynamics?${query(start, end, f, granularity)}&groupBy=${encodeURIComponent(groupBy)}`
+    ).then((r) => handle<LogisticsDynamics>(r)),
 
   importFile: (file: File) => {
     const fd = new FormData();

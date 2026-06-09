@@ -24,7 +24,7 @@ func NewService(repo *Repository, pilotCities []string, pilotStart string) *Serv
 }
 
 // Report считает метрики логистики за период и предыдущий период той же длины.
-func (s *Service) Report(start, end string, f Filters) (*Report, error) {
+func (s *Service) Report(start, end string, f Filters, granularity string) (*Report, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -44,11 +44,11 @@ func (s *Service) Report(start, end string, f Filters) (*Report, error) {
 	prevEnd := st.AddDate(0, 0, -1)
 	prevStart := prevEnd.AddDate(0, 0, -(days - 1))
 
-	cur, err := s.period(st, en, f)
+	cur, err := s.period(st, en, f, parseGranularity(granularity))
 	if err != nil {
 		return nil, err
 	}
-	prev, err := s.period(prevStart, prevEnd, f)
+	prev, err := s.period(prevStart, prevEnd, f, parseGranularity(granularity))
 	if err != nil {
 		return nil, err
 	}
@@ -83,9 +83,9 @@ func groupColumn(groupBy string) string {
 	}
 }
 
-// SeriesBreakdown строит недельную динамику в разрезе измерения groupBy за период
+// SeriesBreakdown строит динамику в разрезе измерения groupBy за период
 // [start,end] с учётом фильтров. Возвращает топ-значения по числу заказов.
-func (s *Service) SeriesBreakdown(start, end string, f Filters, groupBy string) (*SeriesBreakdown, error) {
+func (s *Service) SeriesBreakdown(start, end string, f Filters, groupBy, granularity string) (*SeriesBreakdown, error) {
 	col := groupColumn(groupBy)
 	if col == "" {
 		return nil, fmt.Errorf("неизвестный разрез: %q", groupBy)
@@ -109,7 +109,7 @@ func (s *Service) SeriesBreakdown(start, end string, f Filters, groupBy string) 
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
-	groups, weeks, err := s.repo.seriesBreakdown(startTs, endTs, f, col, 8)
+	groups, weeks, err := s.repo.seriesBreakdown(startTs, endTs, f, col, 8, parseGranularity(granularity))
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func nonNilStrings(in []string) []string {
 	return out
 }
 
-func (s *Service) period(st, en time.Time, f Filters) (PeriodLogistics, error) {
+func (s *Service) period(st, en time.Time, f Filters, g Granularity) (PeriodLogistics, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
@@ -155,7 +155,7 @@ func (s *Service) period(st, en time.Time, f Filters) (PeriodLogistics, error) {
 	if pm.ByCity, err = s.repo.byCity(startTs, endTs, f, pilotSet, 25); err != nil {
 		return pm, err
 	}
-	if pm.Series, err = s.repo.series(startTs, endTs, f); err != nil {
+	if pm.Series, err = s.repo.series(startTs, endTs, f, g); err != nil {
 		return pm, err
 	}
 	if len(s.pilotCities) > 0 {
@@ -209,4 +209,15 @@ func (s *Service) resolveRange(start, end string) (string, string, error) {
 		}
 	}
 	return start, end, nil
+}
+
+func parseGranularity(s string) Granularity {
+	switch s {
+	case string(GranularityDay):
+		return GranularityDay
+	case string(GranularityMonth):
+		return GranularityMonth
+	default:
+		return GranularityWeek
+	}
 }

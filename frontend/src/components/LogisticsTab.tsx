@@ -96,6 +96,23 @@ export default function LogisticsTab({ report }: Props) {
   );
   const rate = (part: number, whole: number) => (whole > 0 ? pct((part / whole) * 100) : "—");
 
+  // Сопоставление с предыдущим периодом по названию строки (для приростов).
+  const prevSvc = new Map(prev.byService.map((r) => [r.name, r]));
+  const prevCity = new Map(prev.byCity.map((r) => [r.name, r]));
+  const svcTotalPrev = prev.byService.reduce(
+    (a, r) => ({ orders: a.orders + r.orders, paid: a.paid + r.paidOrders }),
+    { orders: 0, paid: 0 }
+  );
+  const cityTotalPrev = prev.byCity.reduce(
+    (a, r) => ({
+      orders: a.orders + r.orders,
+      revenue: a.revenue + r.revenue,
+      paid: a.paid + r.paidOrders,
+    }),
+    { orders: 0, revenue: 0, paid: 0 }
+  );
+  const prevPaidRate = (orders: number, paid: number) => (orders > 0 ? (paid / orders) * 100 : 0);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -185,27 +202,50 @@ export default function LogisticsTab({ report }: Props) {
               </tr>
             </thead>
             <tbody>
-              {current.byService.map((r) => (
-                <tr key={r.name} className="border-b border-slate-100 last:border-0">
-                  <td className="max-w-[160px] truncate py-2 pr-2 text-slate-700" title={r.name}>
-                    {r.name}
-                  </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{num(r.orders)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{num(r.paidOrders)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-slate-500">
-                    {rate(r.paidOrders, svcTotal.paid)}
-                  </td>
-                  <td className="px-2 py-2 text-right tabular-nums">{pct(r.freeDeliveryRate)}</td>
-                </tr>
-              ))}
+              {current.byService.map((r) => {
+                const p = prevSvc.get(r.name);
+                return (
+                  <tr key={r.name} className="border-b border-slate-100 last:border-0">
+                    <td className="max-w-[160px] truncate py-2 pr-2 text-slate-700" title={r.name}>
+                      {r.name}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <div>{num(r.orders)}</div>
+                      <div className="mt-0.5 flex justify-end">
+                        <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      <div>{num(r.paidOrders)}</div>
+                      <div className="mt-0.5 flex justify-end">
+                        <DeltaBadge d={delta(r.paidOrders, p?.paidOrders ?? 0)} />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-slate-500">
+                      {rate(r.paidOrders, svcTotal.paid)}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums">{pct(r.freeDeliveryRate)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 font-semibold text-slate-700">
                 <td className="py-2 pr-2">Итого</td>
-                <td className="px-2 py-2 text-right tabular-nums">{num(svcTotal.orders)}</td>
+                <td className="px-2 py-2 text-right tabular-nums">
+                  <div>{num(svcTotal.orders)}</div>
+                  <div className="mt-0.5 flex justify-end">
+                    <DeltaBadge d={delta(svcTotal.orders, svcTotalPrev.orders)} />
+                  </div>
+                </td>
                 <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{num(svcTotal.paid)}</td>
+                <td className="px-2 py-2 text-right tabular-nums">
+                  <div>{num(svcTotal.paid)}</div>
+                  <div className="mt-0.5 flex justify-end">
+                    <DeltaBadge d={delta(svcTotal.paid, svcTotalPrev.paid)} />
+                  </div>
+                </td>
                 <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{rate(svcTotal.free, svcTotal.orders)}</td>
               </tr>
@@ -227,34 +267,72 @@ export default function LogisticsTab({ report }: Props) {
             </tr>
           </thead>
           <tbody>
-            {current.byCity.map((r) => (
-              <tr
-                key={r.name}
-                className={`border-b border-slate-100 last:border-0 ${r.isPilot ? "bg-indigo-50/40" : ""}`}
-              >
-                <td className="py-2 pr-2 text-slate-700">
-                  {r.name}
-                  {r.isPilot && (
-                    <span className="ml-2 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-800">
-                      пилот
-                    </span>
-                  )}
-                </td>
-                <td className="px-2 py-2 text-right tabular-nums">{num(r.orders)}</td>
-                <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{rub(r.revenue)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{pct(r.paidRate)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{pct(r.freeDeliveryRate)}</td>
-              </tr>
-            ))}
+            {current.byCity.map((r) => {
+              const p = prevCity.get(r.name);
+              return (
+                <tr
+                  key={r.name}
+                  className={`border-b border-slate-100 last:border-0 ${r.isPilot ? "bg-indigo-50/40" : ""}`}
+                >
+                  <td className="py-2 pr-2 text-slate-700">
+                    {r.name}
+                    {r.isPilot && (
+                      <span className="ml-2 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-800">
+                        пилот
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    <div>{num(r.orders)}</div>
+                    <div className="mt-0.5 flex justify-end">
+                      <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    <div>{rub(r.revenue)}</div>
+                    <div className="mt-0.5 flex justify-end">
+                      <DeltaBadge d={delta(r.revenue, p?.revenue ?? 0)} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums">
+                    <div>{pct(r.paidRate)}</div>
+                    <div className="mt-0.5 flex justify-end">
+                      <DeltaBadge d={delta(r.paidRate, p?.paidRate ?? 0)} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums">{pct(r.freeDeliveryRate)}</td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200 font-semibold text-slate-700">
               <td className="py-2 pr-2">Итого</td>
-              <td className="px-2 py-2 text-right tabular-nums">{num(cityTotal.orders)}</td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                <div>{num(cityTotal.orders)}</div>
+                <div className="mt-0.5 flex justify-end">
+                  <DeltaBadge d={delta(cityTotal.orders, cityTotalPrev.orders)} />
+                </div>
+              </td>
               <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{rub(cityTotal.revenue)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{rate(cityTotal.paid, cityTotal.orders)}</td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                <div>{rub(cityTotal.revenue)}</div>
+                <div className="mt-0.5 flex justify-end">
+                  <DeltaBadge d={delta(cityTotal.revenue, cityTotalPrev.revenue)} />
+                </div>
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                <div>{rate(cityTotal.paid, cityTotal.orders)}</div>
+                <div className="mt-0.5 flex justify-end">
+                  <DeltaBadge
+                    d={delta(
+                      prevPaidRate(cityTotal.orders, cityTotal.paid),
+                      prevPaidRate(cityTotalPrev.orders, cityTotalPrev.paid)
+                    )}
+                  />
+                </div>
+              </td>
               <td className="px-2 py-2 text-right tabular-nums">{rate(cityTotal.free, cityTotal.orders)}</td>
             </tr>
           </tfoot>

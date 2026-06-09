@@ -150,9 +150,11 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	// служебные знаменатели terminal / paid+terminal для G2N/P2N.
 	const transitCond = "status_stage IN ('new','processing','shipped','in_pvz')"
 	const termCond = "status_stage IN ('completed','canceled','closed','returned')"
+	const custFilter = "customer IS NOT NULL AND customer <> ''"
 	tv := trueVal(r.db)
 	var grossRev, paidRev, transitRev, compRev, termRev, paidTermRev int
 	var paidTermOrders int
+	var grossCust, paidCust, transitCust, compCust, termCust, paidTermCust int
 	rq := r.db.Rebind(`SELECT
 		COALESCE(SUM(total_amount),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` THEN total_amount ELSE 0 END),0),
@@ -160,10 +162,32 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		COALESCE(SUM(CASE WHEN status_stage = 'completed' THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + termCond + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN total_amount ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN 1 ELSE 0 END),0)
+		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN 1 ELSE 0 END),0),
+		COUNT(DISTINCT CASE WHEN ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN is_paid = ` + tv + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + transitCond + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN status_stage = 'completed' AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + termCond + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` AND ` + custFilter + ` THEN customer END)
 		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
 	if err := r.db.QueryRow(rq, append([]interface{}{start, end}, cargs...)...).Scan(
-		&grossRev, &paidRev, &transitRev, &compRev, &termRev, &paidTermRev, &paidTermOrders); err != nil {
+		&grossRev, &paidRev, &transitRev, &compRev, &termRev, &paidTermRev, &paidTermOrders,
+		&grossCust, &paidCust, &transitCust, &compCust, &termCust, &paidTermCust); err != nil {
+		return k, err
+	}
+
+	// Повторные и отменившие покупатели за период.
+	rptq := r.db.Rebind(`SELECT COUNT(*) FROM (
+		SELECT customer FROM orders
+		WHERE created_at >= ? AND created_at <= ? AND ` + custFilter + cc + `
+		GROUP BY customer HAVING COUNT(*) > 1
+	) t`)
+	if err := r.db.QueryRow(rptq, append([]interface{}{start, end}, cargs...)...).Scan(&k.RepeatCustomers); err != nil {
+		return k, err
+	}
+	cancq := r.db.Rebind(`SELECT COUNT(DISTINCT customer) FROM orders
+		WHERE created_at >= ? AND created_at <= ? AND is_canceled = ` + tv + ` AND ` + custFilter + cc)
+	if err := r.db.QueryRow(cancq, append([]interface{}{start, end}, cargs...)...).Scan(&k.CanceledCustomers); err != nil {
 		return k, err
 	}
 	// Единицы товара по стадиям.
@@ -182,19 +206,19 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		return k, err
 	}
 	k.Stages = KPIStages{
-		Created:      makeStage(k.Orders, grossRev, grossUnits),
-		Paid:         makeStage(k.PaidOrders, paidRev, paidUnits),
-		InTransit:    makeStage(k.InTransit, transitRev, transitUnits),
-		Completed:    makeStage(k.Completed, compRev, compUnits),
-		Terminal:     makeStage(k.Terminal, termRev, termUnits),
-		PaidTerminal: makeStage(paidTermOrders, paidTermRev, paidTermUnits),
+		Created:      makeStage(k.Orders, grossRev, grossUnits, grossCust),
+		Paid:         makeStage(k.PaidOrders, paidRev, paidUnits, paidCust),
+		InTransit:    makeStage(k.InTransit, transitRev, transitUnits, transitCust),
+		Completed:    makeStage(k.Completed, compRev, compUnits, compCust),
+		Terminal:     makeStage(k.Terminal, termRev, termUnits, termCust),
+		PaidTerminal: makeStage(paidTermOrders, paidTermRev, paidTermUnits, paidTermCust),
 	}
 	return k, nil
 }
 
 // makeStage считает производные показатели стадии (AOV/ASP/UPT).
-func makeStage(orders, revenue, units int) StageKPI {
-	s := StageKPI{Orders: orders, Revenue: revenue, Units: units}
+func makeStage(orders, revenue, units, customers int) StageKPI {
+	s := StageKPI{Orders: orders, Revenue: revenue, Units: units, Customers: customers}
 	if orders > 0 {
 		s.AOV = revenue / orders
 		s.UPT = round2(float64(units) / float64(orders))
@@ -283,6 +307,77 @@ func (r *Repository) groupProducts(col, start, end string, f Filters, limit int)
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// topCustomers — топ покупателей: объединяет лидеров по выручке и по числу заказов.
+func (r *Repository) topCustomers(start, end string, f Filters, limit int) ([]CustomerRow, error) {
+	byRev, err := r.topCustomersQuery(start, end, f, limit, "revenue")
+	if err != nil {
+		return nil, err
+	}
+	byOrd, err := r.topCustomersQuery(start, end, f, limit/2+5, "orders")
+	if err != nil {
+		return nil, err
+	}
+	return mergeCustomerRows(byRev, byOrd, limit), nil
+}
+
+func (r *Repository) topCustomersQuery(start, end string, f Filters, limit int, orderBy string) ([]CustomerRow, error) {
+	cc, cargs := geoCond(f, "")
+	order := "revenue DESC, orders DESC"
+	if orderBy == "orders" {
+		order = "orders DESC, revenue DESC"
+	}
+	tv := trueVal(r.db)
+	fv := falseVal(r.db)
+	const transitCond = "status_stage IN ('new','processing','shipped','in_pvz')"
+	q := r.db.Rebind(`SELECT customer,
+		COUNT(*) AS orders,
+		COALESCE(SUM(CASE WHEN is_canceled = ` + fv + ` THEN total_amount ELSE 0 END),0) AS revenue,
+		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` THEN 1 ELSE 0 END),0) AS paid_orders,
+		COALESCE(SUM(CASE WHEN ` + transitCond + ` THEN 1 ELSE 0 END),0) AS in_transit_orders,
+		COALESCE(SUM(CASE WHEN status_stage = 'completed' THEN 1 ELSE 0 END),0) AS completed_orders,
+		COALESCE(SUM(CASE WHEN is_canceled = ` + tv + ` THEN 1 ELSE 0 END),0) AS canceled_orders
+		FROM orders
+		WHERE created_at >= ? AND created_at <= ?
+		AND customer IS NOT NULL AND customer <> ''` + cc + `
+		GROUP BY customer ORDER BY ` + order + ` LIMIT ` + fmt.Sprintf("%d", limit))
+	rows, err := r.db.Query(q, append([]interface{}{start, end}, cargs...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CustomerRow
+	for rows.Next() {
+		var n CustomerRow
+		if err := rows.Scan(&n.Name, &n.Orders, &n.Revenue, &n.PaidOrders, &n.InTransitOrders, &n.CompletedOrders, &n.CanceledOrders); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+func mergeCustomerRows(primary, extra []CustomerRow, limit int) []CustomerRow {
+	seen := make(map[string]bool, len(primary)+len(extra))
+	out := make([]CustomerRow, 0, limit)
+	add := func(rows []CustomerRow) {
+		for _, row := range rows {
+			if seen[row.Name] {
+				continue
+			}
+			seen[row.Name] = true
+			out = append(out, row)
+			if len(out) >= limit {
+				return
+			}
+		}
+	}
+	add(primary)
+	if len(out) < limit {
+		add(extra)
+	}
+	return out
 }
 
 // falseVal/trueVal — литералы булевых значений для разных диалектов.

@@ -127,6 +127,14 @@ func (s *Service) period(st, en time.Time, f Filters) (PeriodMetrics, error) {
 	if pm.ByBrand, err = s.repo.groupProducts("brand", startTs, endTs, f, 8); err != nil {
 		return pm, err
 	}
+	if pm.TopCustomers, err = s.repo.topCustomers(startTs, endTs, f, 20); err != nil {
+		return pm, err
+	}
+	if pm.KPI.Revenue > 0 {
+		for i := range pm.TopCustomers {
+			pm.TopCustomers[i].RevenueShare = round2(float64(pm.TopCustomers[i].Revenue) / float64(pm.KPI.Revenue) * 100)
+		}
+	}
 	pm.ensureNonNil()
 	return pm, nil
 }
@@ -141,6 +149,9 @@ func (pm *PeriodMetrics) ensureNonNil() {
 		if *p == nil {
 			*p = []NamedCount{}
 		}
+	}
+	if pm.TopCustomers == nil {
+		pm.TopCustomers = []CustomerRow{}
 	}
 	for _, p := range []*[]ProductRow{&pm.TopProducts, &pm.ByCategory, &pm.ByGender, &pm.ByBrand} {
 		if *p == nil {
