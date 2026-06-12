@@ -95,10 +95,8 @@ export default function PlanEditor({ year, plan, traffic, onSaved }: Props) {
           { month, channel: "app", visits: draft.trafficApp[i] }
         );
       }
-      const [p, t] = await Promise.all([
-        api.putPlan(year, planItems),
-        api.putTraffic(year, trafficItems),
-      ]);
+      const p = await api.putPlan(year, planItems);
+      const t = await api.putTraffic(year, trafficItems);
       onSaved(p, t);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка сохранения");
