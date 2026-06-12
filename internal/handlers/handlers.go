@@ -4,11 +4,15 @@ package handlers
 
 import (
 	"io"
+	"strconv"
+	"time"
 
 	"github.com/clever/clever-dashboard/internal/container"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
+	"github.com/clever/clever-dashboard/internal/services/plan"
+	"github.com/clever/clever-dashboard/internal/services/traffic"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -33,6 +37,10 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Get("/funnel", h.funnel)
 	api.Get("/logistics", h.logistics)
 	api.Get("/dynamics", h.dynamics)
+	api.Get("/plan", h.getPlan)
+	api.Put("/plan", h.putPlan)
+	api.Get("/traffic", h.getTraffic)
+	api.Put("/traffic", h.putTraffic)
 }
 
 func (h *Handler) health(c *fiber.Ctx) error {
@@ -118,7 +126,7 @@ func (h *Handler) coupons(c *fiber.Ctx) error {
 }
 
 func (h *Handler) metrics(c *fiber.Ctx) error {
-	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), metrics.Filters{
+	report, err := h.c.Metrics.Report(c.Query("start"), c.Query("end"), c.Query("compareStart"), c.Query("compareEnd"), metrics.Filters{
 		City:     c.Query("city"),
 		Region:   c.Query("region"),
 		Channel:  c.Query("channel"),
@@ -133,7 +141,7 @@ func (h *Handler) metrics(c *fiber.Ctx) error {
 }
 
 func (h *Handler) funnel(c *fiber.Ctx) error {
-	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), funnel.Filters{
+	report, err := h.c.Funnel.Report(c.Query("start"), c.Query("end"), c.Query("compareStart"), c.Query("compareEnd"), funnel.Filters{
 		City:     c.Query("city"),
 		Region:   c.Query("region"),
 		Channel:  c.Query("channel"),
@@ -148,7 +156,7 @@ func (h *Handler) funnel(c *fiber.Ctx) error {
 }
 
 func (h *Handler) logistics(c *fiber.Ctx) error {
-	report, err := h.c.Logistics.Report(c.Query("start"), c.Query("end"), logistics.Filters{
+	report, err := h.c.Logistics.Report(c.Query("start"), c.Query("end"), c.Query("compareStart"), c.Query("compareEnd"), logistics.Filters{
 		City:     c.Query("city"),
 		Region:   c.Query("region"),
 		Channel:  c.Query("channel"),
@@ -171,6 +179,65 @@ func (h *Handler) dynamics(c *fiber.Ctx) error {
 		Delivery: c.Query("delivery"),
 		Coupon:   c.Query("coupon"),
 	}, c.Query("groupBy"), c.Query("granularity"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func parseYearQuery(raw string) int {
+	if raw == "" {
+		return time.Now().Year()
+	}
+	y, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return y
+}
+
+func (h *Handler) getPlan(c *fiber.Ctx) error {
+	year := parseYearQuery(c.Query("year"))
+	if year == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "неверный параметр year")
+	}
+	report, err := h.c.Plan.Get(year)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) putPlan(c *fiber.Ctx) error {
+	var req plan.SaveRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "неверное тело запроса")
+	}
+	report, err := h.c.Plan.Save(req.Year, req.Items)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) getTraffic(c *fiber.Ctx) error {
+	year := parseYearQuery(c.Query("year"))
+	if year == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "неверный параметр year")
+	}
+	report, err := h.c.Traffic.Get(year)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) putTraffic(c *fiber.Ctx) error {
+	var req traffic.SaveRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "неверное тело запроса")
+	}
+	report, err := h.c.Traffic.Save(req.Year, req.Items)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}

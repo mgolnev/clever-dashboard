@@ -77,6 +77,29 @@ func (d *DB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_orders_channel ON orders(channel)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_order_number ON order_items(order_number)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_category ON order_items(category)`,
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS sales_plan (
+			id %s,
+			year INTEGER NOT NULL,
+			month INTEGER NOT NULL,
+			channel TEXT NOT NULL,
+			net_target INTEGER NOT NULL DEFAULT 0,
+			updated_at %s NOT NULL
+		)`, pkAuto, tsType),
+
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_plan_uniq ON sales_plan(year, month, channel)`,
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS traffic (
+			id %s,
+			year INTEGER NOT NULL,
+			month INTEGER NOT NULL,
+			channel TEXT NOT NULL,
+			visits INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL DEFAULT 'manual',
+			updated_at %s NOT NULL
+		)`, pkAuto, tsType),
+
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_traffic_uniq ON traffic(year, month, channel, source)`,
 	}
 
 	for _, s := range stmts {

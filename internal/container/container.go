@@ -9,6 +9,8 @@ import (
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
 	"github.com/clever/clever-dashboard/internal/services/orders"
+	"github.com/clever/clever-dashboard/internal/services/plan"
+	"github.com/clever/clever-dashboard/internal/services/traffic"
 )
 
 type Container struct {
@@ -18,6 +20,8 @@ type Container struct {
 	Metrics   *metrics.Service
 	Funnel    *funnel.Service
 	Logistics *logistics.Service
+	Plan      *plan.Service
+	Traffic   *traffic.Service
 }
 
 func New(cfg config.Config) (*Container, error) {
@@ -37,6 +41,8 @@ func New(cfg config.Config) (*Container, error) {
 		cfg.LogisticsPilotCities,
 		cfg.LogisticsPilotStart,
 	)
+	planSvc := plan.NewService(plan.NewRepository(database))
+	trafficSvc := traffic.NewService(traffic.NewRepository(database))
 
 	return &Container{
 		Cfg:       cfg,
@@ -45,6 +51,8 @@ func New(cfg config.Config) (*Container, error) {
 		Metrics:   metricsSvc,
 		Funnel:    funnelSvc,
 		Logistics: logisticsSvc,
+		Plan:      planSvc,
+		Traffic:   trafficSvc,
 	}, nil
 }
 

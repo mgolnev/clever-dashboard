@@ -106,6 +106,35 @@ export interface City {
   orders: number;
 }
 
+export interface ChannelTargets {
+  all: number;
+  site: number;
+  app: number;
+}
+
+export interface PlanMonth {
+  month: number;
+  daysInMonth: number;
+  targets: ChannelTargets;
+  perDay: ChannelTargets;
+}
+
+export interface PlanReport {
+  year: number;
+  months: PlanMonth[];
+}
+
+export interface TrafficMonth {
+  month: number;
+  site: number;
+  app: number;
+}
+
+export interface TrafficReport {
+  year: number;
+  months: TrafficMonth[];
+}
+
 export interface FunnelStep {
   key: string;
   label: string;
@@ -142,6 +171,8 @@ export interface LabeledCount {
 
 export interface FunnelReport {
   period: Range;
+  previous: Range;
+  prevStages: FunnelStep[];
   stages: FunnelStep[];
   gross: number;
   canceled: number;

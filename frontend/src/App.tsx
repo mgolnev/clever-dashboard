@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import type { Bounds, City, FunnelReport, LogisticsReport, Report } from "./types";
+import type { Bounds, City, FunnelReport, LogisticsReport, Range, Report } from "./types";
 import DateRangeBar from "./components/DateRangeBar";
 import UploadCard from "./components/UploadCard";
 import KpiCards from "./components/KpiCards";
@@ -12,19 +12,46 @@ import ProductTable from "./components/ProductTable";
 import FunnelTab from "./components/FunnelTab";
 import LogisticsTab from "./components/LogisticsTab";
 import DynamicsTab from "./components/DynamicsTab";
+import PlanTab from "./components/PlanTab";
 
-type Tab = "overview" | "customers" | "funnels" | "logistics" | "dynamics";
+type Tab = "overview" | "plan" | "customers" | "funnels" | "logistics" | "dynamics";
+type CompareMode = "prev" | "yoy" | "prevMonth" | "custom";
+
+// formatLocalDate форматирует дату в YYYY-MM-DD по локальным компонентам,
+// без UTC-сдвига (toISOString в зонах восточнее UTC уводит дату на день назад).
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function addDays(date: string, days: number): string {
   const d = new Date(date + "T00:00:00");
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return formatLocalDate(d);
+}
+
+function shiftYears(date: string, n: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setFullYear(d.getFullYear() + n);
+  return formatLocalDate(d);
+}
+
+function shiftMonths(date: string, n: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setMonth(d.getMonth() + n);
+  return formatLocalDate(d);
 }
 
 export default function App() {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [compareEnabled, setCompareEnabled] = useState(true);
+  const [compareMode, setCompareMode] = useState<CompareMode>("prev");
+  const [compareStart, setCompareStart] = useState("");
+  const [compareEnd, setCompareEnd] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
   const [logistics, setLogistics] = useState<LogisticsReport | null>(null);
@@ -43,6 +70,32 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const effectiveCompare = useMemo(() => {
+    if (!compareEnabled) return { cs: "", ce: "" };
+    switch (compareMode) {
+      case "prev":
+        return { cs: "", ce: "" };
+      case "yoy":
+        return start && end ? { cs: shiftYears(start, -1), ce: shiftYears(end, -1) } : { cs: "", ce: "" };
+      case "prevMonth":
+        return start && end ? { cs: shiftMonths(start, -1), ce: shiftMonths(end, -1) } : { cs: "", ce: "" };
+      case "custom":
+        return compareStart && compareEnd ? { cs: compareStart, ce: compareEnd } : { cs: "", ce: "" };
+      default:
+        return { cs: "", ce: "" };
+    }
+  }, [compareEnabled, compareMode, start, end, compareStart, compareEnd]);
+
+  const { cs, ce } = effectiveCompare;
+
+  const previousForBar: Range | undefined = useMemo(() => {
+    if (!compareEnabled) return undefined;
+    if (tab === "overview" || tab === "customers") return report?.previous;
+    if (tab === "funnels") return funnel?.previous;
+    if (tab === "logistics" || tab === "dynamics") return logistics?.previous;
+    return undefined;
+  }, [compareEnabled, tab, report?.previous, funnel?.previous, logistics?.previous]);
 
   const loadBounds = useCallback(async () => {
     const b = await api.bounds();
@@ -90,19 +143,19 @@ export default function App() {
     setError(null);
     const f = { city, region, channel, payment, delivery, coupon };
     Promise.all([
-      api.metrics(start, end, f),
-      api.funnel(start, end, f),
-      api.logistics(start, end, f),
+      api.metrics(start, end, f, cs, ce),
+      api.funnel(start, end, f, cs, ce),
+      api.logistics(start, end, f, undefined, cs, ce),
     ])
-      .then(([m, f, l]) => {
+      .then(([m, fn, l]) => {
         setReport(m);
-        setFunnel(f);
+        setFunnel(fn);
         setLogistics(l);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
+  }, [start, end, cs, ce, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
 
   const onChange = (s: string, e: string) => {
     setStart(s);
@@ -133,24 +186,17 @@ export default function App() {
         <UploadCard onImported={onImported} />
       </div>
 
-      {!hasData && !loading && (
-        <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm ring-1 ring-slate-200">
-          Данных пока нет. Загрузите выгрузку заказов из Битрикса, чтобы увидеть дашборд.
-        </div>
-      )}
-
-      {hasData && (
-        <>
-          <div className="mb-4 flex gap-1 border-b border-slate-200">
-            {(
-              [
-                ["overview", "Обзор"],
-                ["customers", "Клиенты"],
-                ["funnels", "Воронки"],
-                ["logistics", "Логистика"],
-                ["dynamics", "Динамика"],
-              ] as [Tab, string][]
-            ).map(([key, label]) => (
+      <div className="mb-4 flex gap-1 border-b border-slate-200">
+        {(
+          [
+            ["overview", "Обзор"],
+            ["plan", "Цель"],
+            ["customers", "Клиенты"],
+            ["funnels", "Воронки"],
+            ["logistics", "Логистика"],
+            ["dynamics", "Динамика"],
+          ] as [Tab, string][]
+        ).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -163,14 +209,35 @@ export default function App() {
                 {label}
               </button>
             ))}
-          </div>
+      </div>
+
+      {tab === "plan" && <PlanTab />}
+
+      {!hasData && !loading && tab !== "plan" && (
+        <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm ring-1 ring-slate-200">
+          Данных пока нет. Загрузите выгрузку заказов из Битрикса, чтобы увидеть дашборд.
+        </div>
+      )}
+
+      {hasData && tab !== "plan" && (
+        <>
           <div className="mb-4">
             <DateRangeBar
               start={start}
               end={end}
               min={bounds?.min}
               max={bounds?.max}
-              previous={tab === "overview" || tab === "customers" ? report?.previous : undefined}
+              previous={previousForBar}
+              compareEnabled={compareEnabled}
+              onToggleCompare={setCompareEnabled}
+              compareMode={compareMode}
+              onCompareModeChange={setCompareMode}
+              compareStart={compareStart}
+              compareEnd={compareEnd}
+              onCompareRangeChange={(s, e) => {
+                setCompareStart(s);
+                setCompareEnd(e);
+              }}
               cities={cities}
               city={city}
               onCityChange={setCity}
@@ -199,47 +266,58 @@ export default function App() {
         <div className="mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
       )}
 
-      {loading && <div className="py-4 text-sm text-slate-400">Загрузка метрик…</div>}
+      {loading && tab !== "plan" && (
+        <div className="py-4 text-sm text-slate-400">Загрузка метрик…</div>
+      )}
 
-      {tab === "funnels" && funnel && <FunnelTab report={funnel} />}
+      {tab !== "plan" && tab === "funnels" && funnel && (
+        <FunnelTab report={funnel} showCompare={compareEnabled} />
+      )}
 
-      {tab === "logistics" && !loading && !logistics && (
+      {tab !== "plan" && tab === "logistics" && !loading && !logistics && (
         <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
           Не удалось загрузить метрики логистики. Проверьте, что backend перезапущен и отвечает на{" "}
           <code className="text-xs">/api/logistics</code>.
         </div>
       )}
 
-      {tab === "logistics" && logistics && (
-        <LogisticsTab report={logistics} />
+      {tab !== "plan" && tab === "logistics" && logistics && (
+        <LogisticsTab report={logistics} showCompare={compareEnabled} />
       )}
 
-      {tab === "dynamics" && !loading && !logistics && (
+      {tab !== "plan" && tab === "dynamics" && !loading && !logistics && (
         <div className="rounded-xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
           Не удалось загрузить данные динамики. Проверьте, что backend перезапущен и отвечает на{" "}
           <code className="text-xs">/api/logistics</code>.
         </div>
       )}
 
-      {tab === "dynamics" && logistics && (
+      {tab !== "plan" && tab === "dynamics" && logistics && (
         <DynamicsTab
           report={logistics}
           start={start}
           end={end}
           filters={{ city, region, channel, payment, delivery, coupon }}
+          compareStart={cs}
+          compareEnd={ce}
+          showCompare={compareEnabled}
         />
       )}
 
-      {tab === "customers" && report && (
+      {tab !== "plan" && tab === "customers" && report && (
         <div className="space-y-4">
-          <CustomerKpiCards current={report.current.kpi} prev={report.prev.kpi} />
+          <CustomerKpiCards
+            current={report.current.kpi}
+            prev={report.prev.kpi}
+            showCompare={compareEnabled}
+          />
           <CustomerTable rows={report.current.topCustomers} totalRevenue={report.current.kpi.revenue} />
         </div>
       )}
 
-      {tab === "overview" && report && (
+      {tab !== "plan" && tab === "overview" && report && (
         <div className="space-y-4">
-          <KpiCards current={report.current.kpi} prev={report.prev.kpi} />
+          <KpiCards current={report.current.kpi} prev={report.prev.kpi} showCompare={compareEnabled} />
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Funnel stages={report.current.funnel} />

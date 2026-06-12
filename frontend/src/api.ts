@@ -5,7 +5,9 @@ import type {
   ImportResult,
   LogisticsDynamics,
   LogisticsReport,
+  PlanReport,
   Report,
+  TrafficReport,
 } from "./types";
 
 async function handle<T>(res: Response): Promise<T> {
@@ -32,9 +34,18 @@ export interface Filters {
   coupon: string[];
 }
 
-function query(start: string, end: string, f: Filters, granularity?: string): string {
+function query(
+  start: string,
+  end: string,
+  f: Filters,
+  opts?: { granularity?: string; compareStart?: string; compareEnd?: string }
+): string {
   const p = new URLSearchParams({ start, end });
-  if (granularity) p.set("granularity", granularity);
+  if (opts?.granularity) p.set("granularity", opts.granularity);
+  if (opts?.compareStart && opts?.compareEnd) {
+    p.set("compareStart", opts.compareStart);
+    p.set("compareEnd", opts.compareEnd);
+  }
   if (f.city.length) p.set("city", f.city.join(","));
   if (f.region.length) p.set("region", f.region.join(","));
   if (f.channel.length) p.set("channel", f.channel.join(","));
@@ -59,18 +70,31 @@ export const api = {
 
   coupons: () => fetch("/api/coupons").then((r) => handle<City[]>(r)),
 
-  metrics: (start: string, end: string, f: Filters) =>
-    fetch(`/api/metrics?${query(start, end, f)}`).then((r) => handle<Report>(r)),
+  metrics: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
+    fetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
+      handle<Report>(r)
+    ),
 
-  funnel: (start: string, end: string, f: Filters) =>
-    fetch(`/api/funnel?${query(start, end, f)}`).then((r) => handle<FunnelReport>(r)),
+  funnel: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
+    fetch(`/api/funnel?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
+      handle<FunnelReport>(r)
+    ),
 
-  logistics: (start: string, end: string, f: Filters, granularity?: string) =>
-    fetch(`/api/logistics?${query(start, end, f, granularity)}`).then((r) => handle<LogisticsReport>(r)),
+  logistics: (
+    start: string,
+    end: string,
+    f: Filters,
+    granularity?: string,
+    compareStart?: string,
+    compareEnd?: string
+  ) =>
+    fetch(
+      `/api/logistics?${query(start, end, f, { granularity, compareStart, compareEnd })}`
+    ).then((r) => handle<LogisticsReport>(r)),
 
   dynamics: (start: string, end: string, f: Filters, groupBy: string, granularity?: string) =>
     fetch(
-      `/api/dynamics?${query(start, end, f, granularity)}&groupBy=${encodeURIComponent(groupBy)}`
+      `/api/dynamics?${query(start, end, f, { granularity })}&groupBy=${encodeURIComponent(groupBy)}`
     ).then((r) => handle<LogisticsDynamics>(r)),
 
   importFile: (file: File) => {
@@ -80,4 +104,30 @@ export const api = {
       handle<ImportResult>(r)
     );
   },
+
+  getPlan: (year: number) =>
+    fetch(`/api/plan?year=${year}`).then((r) => handle<PlanReport>(r)),
+
+  putPlan: (
+    year: number,
+    items: { month: number; channel: string; netTarget: number }[]
+  ) =>
+    fetch("/api/plan", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year, items }),
+    }).then((r) => handle<PlanReport>(r)),
+
+  getTraffic: (year: number) =>
+    fetch(`/api/traffic?year=${year}`).then((r) => handle<TrafficReport>(r)),
+
+  putTraffic: (
+    year: number,
+    items: { month: number; channel: string; visits: number }[]
+  ) =>
+    fetch("/api/traffic", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year, items }),
+    }).then((r) => handle<TrafficReport>(r)),
 };

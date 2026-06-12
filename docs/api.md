@@ -55,10 +55,12 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 ]
 ```
 
-## `GET /api/metrics?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
+## `GET /api/metrics?start=YYYY-MM-DD&end=YYYY-MM-DD&compareStart=YYYY-MM-DD&compareEnd=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
 
-Метрики за период и за предыдущий период той же длины. Если `start`/`end` не
-заданы — последние 7 дней данных. Необязательные `city`, `region`, `channel`
+Метрики за период и за период сравнения. Если `start`/`end` не заданы — последние
+7 дней данных. Необязательные `compareStart`/`compareEnd` (формат `YYYY-MM-DD`)
+задают второй период явно; если не переданы — предыдущий период той же длины
+непосредственно перед текущим (поведение по умолчанию). Необязательные `city`, `region`, `channel`
 (витрина: «Приложение»/«Сайт»), `payment` (способ оплаты), `delivery` (способ
 доставки) и `coupon` (промокод) поддерживают **мультивыбор**: список значений
 через запятую (например `city=Киров,Казань`). Внутри списка — логика **ИЛИ**
@@ -131,12 +133,13 @@ UI показывает долю стадии от «Оформлено» для
 предоплате он ≈100%), но его дополнение — «Возврат опл.» — показывает реальные
 возвраты/невыкуп после оплаты.
 
-## `GET /api/logistics?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>&granularity=<day|week|month>`
+## `GET /api/logistics?start=YYYY-MM-DD&end=YYYY-MM-DD&compareStart=YYYY-MM-DD&compareEnd=YYYY-MM-DD&city=<город>&region=<область>&granularity=<day|week|month>`
 
 Метрики доставки для пилота «бесплатная доставка / без порога». Структура как у
-`/api/metrics`: текущий и предыдущий период той же длины, те же фильтры `city` /
-`region`. Необязательный `granularity` задаёт шаг `series`: `day`, `week`
-(по умолчанию) или `month`.
+`/api/metrics`: текущий и период сравнения, те же фильтры `city` / `region`.
+Необязательные `compareStart`/`compareEnd` (формат `YYYY-MM-DD`) задают второй
+период явно; по умолчанию — предыдущий период той же длины. Необязательный
+`granularity` задаёт шаг `series`: `day`, `week` (по умолчанию) или `month`.
 
 ```jsonc
 {
@@ -202,9 +205,11 @@ UI показывает долю стадии от «Оформлено» для
 }
 ```
 
-## `GET /api/funnel?start=YYYY-MM-DD&end=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
+## `GET /api/funnel?start=YYYY-MM-DD&end=YYYY-MM-DD&compareStart=YYYY-MM-DD&compareEnd=YYYY-MM-DD&city=<город>&region=<область>&channel=<витрина>&payment=<оплата>&delivery=<доставка>`
 
 Воронка пути заказа за период. Пустые даты — последняя неделя данных.
+Необязательные `compareStart`/`compareEnd` (формат `YYYY-MM-DD`) задают второй
+период для сравнения стадий; по умолчанию — предыдущий период той же длины.
 Необязательные `city`, `region`, `channel`, `payment` и `delivery` поддерживают
 мультивыбор (список через запятую): внутри списка — `IN` (ИЛИ), между фильтрами —
 AND. Фильтруют все стадии, разрезы и топы.
@@ -217,11 +222,13 @@ AND. Фильтруют все стадии, разрезы и топы.
 ```jsonc
 {
   "period": { "start": "...", "end": "...", "days": 7 },
+  "previous": { "start": "...", "end": "...", "days": 7 },
   "stages": [   // кумулятивные стадии: заказ дошёл хотя бы до стадии
     { "key": "created", "label": "Создан (гросс)", "orders": 426, "revenue": 2100000, "units": 1680, "fromStart": 100, "fromPrev": 100 },
     { "key": "paid",    "label": "Оплачен",        "orders": 300, "revenue": 1550000, "units": 1210, "fromStart": 70.4, "fromPrev": 70.4 }
     // ... processing | shipped | delivered | completed
   ],
+  "prevStages": [ /* те же поля, что stages — стадии периода сравнения */ ],
   "gross": 426, "canceled": 126, "returns": 8, "problems": 12, "canceledNoReason": 109,
   "segments": [  // by: payment | delivery | channel | region
     { "by": "payment", "label": "Способ оплаты", "rows": [
@@ -237,3 +244,88 @@ AND. Фильтруют все стадии, разрезы и топы.
 Стадии **кумулятивны** (заказ учитывается, если дошёл хотя бы до стадии).
 `paidRate`/`cancelRate`/`completedRate` в разрезах считаются от гросс данного
 сегмента.
+
+## `GET /api/plan?year=YYYY` · `PUT /api/plan`
+
+План продаж NET (выкупленная выручка) по месяцам и каналам. Параметр `year`
+необязателен — по умолчанию текущий год (2000..2100).
+
+**GET** — всегда 12 месяцев, даже если в БД пусто (нули):
+
+```jsonc
+{
+  "year": 2026,
+  "months": [
+    {
+      "month": 1,
+      "daysInMonth": 31,
+      "targets": { "all": 4500000, "site": 3000000, "app": 1500000 },
+      "perDay":  { "all": 145161, "site": 96774, "app": 48387 }
+    }
+    // ... месяцы 2..12
+  ]
+}
+```
+
+`perDay` = округление `net_target / daysInMonth`. Каналы: `all` | `site` | `app`.
+
+**PUT** — upsert элементов, ответ как у GET:
+
+```jsonc
+{
+  "year": 2026,
+  "items": [
+    { "month": 1, "channel": "all", "netTarget": 4500000 },
+    { "month": 1, "channel": "site", "netTarget": 3000000 }
+  ]
+}
+```
+
+Валидация: `month` 1..12, `channel` ∈ {all, site, app}, `netTarget` ≥ 0.
+
+### Формула достижения плана (расчёт на фронте)
+
+Сведение с `/api/metrics` и `/api/traffic` выполняется на клиенте (сервисы
+`plan` и `traffic` не зависят от `metrics`).
+
+- **NET (факт)** = `kpi.stages.completed.revenue` за выбранный месяц.
+- **CR** = `kpi.orders` / визиты (гросс-заказы / визиты из трафика).
+- **AOV** = `kpi.revenue` / `kpi.orders` (средний чек на оформленный заказ).
+- **R** (выкупаемость по выручке) = `kpi.stages.completed.revenue` / `kpi.revenue`.
+- Тождество: **NET = визиты × CR × AOV × R**.
+- **Нужно визитов** = `план_NET / (CR × AOV × R)` при ненулевом знаменателе.
+
+Для каналов: `site` → фильтр `channel=Сайт`, `app` → `channel=Приложение`, `all`
+— без фильтра канала; визиты `all` = сумма site + app.
+
+## `GET /api/traffic?year=YYYY` · `PUT /api/traffic`
+
+Ручной ввод визитов по месяцам (v1: только `source=manual`). Параметр `year` —
+как у плана.
+
+**GET**:
+
+```jsonc
+{
+  "year": 2026,
+  "months": [
+    { "month": 1, "site": 50000, "app": 12000 }
+    // ... 12 месяцев
+  ]
+}
+```
+
+**PUT** — upsert, `channel` только `site` | `app`:
+
+```jsonc
+{
+  "year": 2026,
+  "items": [
+    { "month": 1, "channel": "site", "visits": 50000 },
+    { "month": 1, "channel": "app", "visits": 12000 }
+  ]
+}
+```
+
+Колонка `source` в БД зарезервирована под будущий импорт из Яндекс.Метрики и
+AppMetrica (см. roadmap).
