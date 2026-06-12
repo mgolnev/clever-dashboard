@@ -8,6 +8,9 @@ interface Props {
   start: string;
   end: string;
   filters: Filters;
+  compareStart?: string;
+  compareEnd?: string;
+  showCompare?: boolean;
 }
 
 type Granularity = "day" | "week" | "month";
@@ -112,43 +115,85 @@ function MetricSwitcher({
 
 function SingleChart({
   points,
+  prevPoints,
   metricKey,
   granularity,
+  showCompare,
 }: {
   points: LogisticsWeekPoint[];
+  prevPoints?: LogisticsWeekPoint[];
   metricKey: string;
   granularity: Granularity;
+  showCompare?: boolean;
 }) {
   const metric = metricByKey(metricKey);
   if (points.length === 0) {
     return <div className="text-sm text-slate-400">Нет данных за период</div>;
   }
-  const max = Math.max(1, ...points.map((p) => metric.pick(p)));
+
+  // Выравнивание по индексу слева: i-й бакет текущего периода ↔ i-й бакет сравнения
+  // (длины могут отличаться — рисуем overlay только для min(len)).
+  const hasOverlay = showCompare && prevPoints && prevPoints.length > 0;
+  const overlayLen = hasOverlay ? Math.min(points.length, prevPoints!.length) : 0;
+
+  const allValues = [
+    ...points.map((p) => metric.pick(p)),
+    ...(hasOverlay ? prevPoints!.slice(0, overlayLen).map((p) => metric.pick(p)) : []),
+  ];
+  const max = Math.max(1, ...allValues);
   const minW = chartMinWidth(points.length, granularity);
+
   return (
     <div className="space-y-3">
+      {hasOverlay && (
+        <div className="flex items-center gap-4 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-5 rounded bg-indigo-400" />
+            Текущий
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-5 rounded border border-slate-400 bg-slate-200/60" />
+            Сравнение
+          </span>
+        </div>
+      )}
       <div className={minW ? "overflow-x-auto pb-1" : undefined}>
         <div
           className="flex h-64 items-end gap-1.5"
           style={minW ? { minWidth: minW } : undefined}
         >
-          {points.map((p) => {
+          {points.map((p, i) => {
             const v = metric.pick(p);
             const h = Math.max(4, (v / max) * 90);
+            const prevP = hasOverlay && i < overlayLen ? prevPoints![i] : null;
+            const pv = prevP ? metric.pick(prevP) : 0;
+            const ph = prevP ? Math.max(2, (pv / max) * 90) : 0;
             return (
               <div
                 key={p.week}
-                className="group flex h-full min-w-0 flex-1 flex-col justify-end"
+                className="group relative flex h-full min-w-0 flex-1 flex-col justify-end"
                 style={minW ? { minWidth: 24, flex: "0 0 24px" } : undefined}
-                title={`${p.week}: ${metric.label} ${metric.fmt(v)}`}
+                title={
+                  prevP
+                    ? `${p.week}: ${metric.label} ${metric.fmt(v)} · сравн. ${metric.fmt(pv)}`
+                    : `${p.week}: ${metric.label} ${metric.fmt(v)}`
+                }
               >
                 <span className="mb-1 w-full truncate text-center text-[10px] font-medium tabular-nums text-slate-500">
                   {metric.fmt(v)}
                 </span>
-                <div
-                  className="w-full rounded-t bg-indigo-400 transition group-hover:bg-indigo-500"
-                  style={{ height: `${h}%` }}
-                />
+                <div className="relative flex w-full flex-1 items-end justify-center">
+                  {prevP && (
+                    <div
+                      className="absolute bottom-0 w-[70%] rounded-t border border-slate-400/60 bg-slate-300/50"
+                      style={{ height: `${ph}%` }}
+                    />
+                  )}
+                  <div
+                    className="relative z-10 w-full rounded-t bg-indigo-400 transition group-hover:bg-indigo-500"
+                    style={{ height: `${h}%` }}
+                  />
+                </div>
               </div>
             );
           })}
@@ -265,12 +310,21 @@ function GroupedChart({
   );
 }
 
-export default function DynamicsTab({ report, start, end, filters }: Props) {
+export default function DynamicsTab({
+  report,
+  start,
+  end,
+  filters,
+  compareStart,
+  compareEnd,
+  showCompare = true,
+}: Props) {
   const { period, previous } = report;
   const [metricKey, setMetricKey] = useState("orders");
   const [granularity, setGranularity] = useState<Granularity>("week");
   const [breakdown, setBreakdown] = useState("none");
   const [series, setSeries] = useState<LogisticsWeekPoint[]>(report.current.series);
+  const [prevSeries, setPrevSeries] = useState<LogisticsWeekPoint[]>(report.prev.series);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [dyn, setDyn] = useState<LogisticsDynamics | null>(null);
@@ -278,10 +332,12 @@ export default function DynamicsTab({ report, start, end, filters }: Props) {
   const [dynError, setDynError] = useState<string | null>(null);
 
   const fKey = JSON.stringify(filters);
+  const compareKey = `${compareStart ?? ""}|${compareEnd ?? ""}`;
 
   useEffect(() => {
     if (granularity === "week") {
       setSeries(report.current.series);
+      setPrevSeries(report.prev.series);
       setSeriesError(null);
       setSeriesLoading(false);
       return;
@@ -290,13 +346,17 @@ export default function DynamicsTab({ report, start, end, filters }: Props) {
     setSeriesLoading(true);
     setSeriesError(null);
     api
-      .logistics(start, end, filters, granularity)
+      .logistics(start, end, filters, granularity, compareStart, compareEnd)
       .then((r) => {
-        if (!cancelled) setSeries(r.current.series);
+        if (!cancelled) {
+          setSeries(r.current.series);
+          setPrevSeries(r.prev.series);
+        }
       })
       .catch((e) => {
         if (!cancelled) {
           setSeries([]);
+          setPrevSeries([]);
           setSeriesError(e.message);
         }
       })
@@ -307,7 +367,7 @@ export default function DynamicsTab({ report, start, end, filters }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [granularity, start, end, fKey, report.current.series]);
+  }, [granularity, start, end, fKey, compareKey, report.current.series, report.prev.series]);
 
   useEffect(() => {
     if (breakdown === "none") {
@@ -343,9 +403,11 @@ export default function DynamicsTab({ report, start, end, filters }: Props) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-500">
-        Период {period.start} — {period.end} · сравнение с {previous.start} — {previous.end}
-      </p>
+      {showCompare && (
+        <p className="text-xs text-slate-500">
+          Период {period.start} — {period.end} · сравнение с {previous.start} — {previous.end}
+        </p>
+      )}
       <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Динамика {granularityTitle(granularity)}
@@ -398,7 +460,13 @@ export default function DynamicsTab({ report, start, end, filters }: Props) {
             <div className="py-8 text-center text-sm text-rose-600">{chartError}</div>
           )}
           {!chartLoading && !chartError && breakdown === "none" && (
-            <SingleChart points={series} metricKey={metricKey} granularity={granularity} />
+            <SingleChart
+              points={series}
+              prevPoints={prevSeries}
+              metricKey={metricKey}
+              granularity={granularity}
+              showCompare={showCompare}
+            />
           )}
           {!chartLoading && !chartError && breakdown !== "none" && dyn && (
             <GroupedChart data={dyn} metricKey={metricKey} granularity={granularity} />

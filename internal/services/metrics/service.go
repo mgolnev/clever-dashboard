@@ -50,10 +50,33 @@ func (s *Service) Coupons() ([]NamedCount, error) {
 	return s.repo.coupons()
 }
 
-// Report считает метрики за период [start,end] и за предыдущий период такой же
-// длины с опциональным фильтром по городу и/или области. start/end — даты
-// YYYY-MM-DD; если пустые, берётся последняя неделя данных.
-func (s *Service) Report(start, end string, f Filters) (*Report, error) {
+// resolvePrevRange возвращает диапазон для сравнения. Если compareStart и compareEnd
+// заданы — используется он (с нормализацией порядка). Иначе — предыдущий период той
+// же длины непосредственно перед текущим (поведение по умолчанию).
+func resolvePrevRange(st, en time.Time, days int, compareStart, compareEnd string) (time.Time, time.Time, error) {
+	if compareStart == "" || compareEnd == "" {
+		prevEnd := st.AddDate(0, 0, -1)
+		prevStart := prevEnd.AddDate(0, 0, -(days - 1))
+		return prevStart, prevEnd, nil
+	}
+	ps, err := time.Parse(dateLayout, compareStart)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("неверная дата сравнения: %w", err)
+	}
+	pe, err := time.Parse(dateLayout, compareEnd)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("неверная дата сравнения: %w", err)
+	}
+	if ps.After(pe) {
+		ps, pe = pe, ps
+	}
+	return ps, pe, nil
+}
+
+// Report считает метрики за период [start,end] и за период сравнения с опциональным
+// фильтром по городу и/или области. start/end — даты YYYY-MM-DD; если пустые, берётся
+// последняя неделя данных. compareStart/compareEnd задают второй период явно.
+func (s *Service) Report(start, end, compareStart, compareEnd string, f Filters) (*Report, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -71,8 +94,11 @@ func (s *Service) Report(start, end string, f Filters) (*Report, error) {
 	}
 	days := int(en.Sub(st).Hours()/24) + 1
 
-	prevEnd := st.AddDate(0, 0, -1)
-	prevStart := prevEnd.AddDate(0, 0, -(days - 1))
+	prevStart, prevEnd, err := resolvePrevRange(st, en, days, compareStart, compareEnd)
+	if err != nil {
+		return nil, err
+	}
+	prevDays := int(prevEnd.Sub(prevStart).Hours()/24) + 1
 
 	cur, err := s.period(st, en, f)
 	if err != nil {
@@ -85,7 +111,7 @@ func (s *Service) Report(start, end string, f Filters) (*Report, error) {
 
 	return &Report{
 		Period:   Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
-		Previous: Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: days},
+		Previous: Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: prevDays},
 		Current:  cur,
 		Prev:     prev,
 	}, nil

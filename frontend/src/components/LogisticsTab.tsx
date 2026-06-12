@@ -1,9 +1,10 @@
 import type { LogisticsReport, LogisticsSummary } from "../types";
-import { delta, num, pct, rub } from "../utils/format";
+import { delta, num, pct, rub, rubAbs, numAbs, ppAbs } from "../utils/format";
 import DeltaBadge from "./DeltaBadge";
 
 interface Props {
   report: LogisticsReport;
+  showCompare?: boolean;
 }
 
 interface KpiDef {
@@ -11,17 +12,19 @@ interface KpiDef {
   hint?: string;
   pick: (s: LogisticsSummary) => number;
   fmt: (n: number) => string;
+  fmtAbs?: (n: number) => string;
   invertDelta?: boolean;
 }
 
 const KPIS: KpiDef[] = [
-  { label: "Заказы", hint: "гросс", pick: (s) => s.orders, fmt: num },
-  { label: "Выручка", hint: "не отменённые", pick: (s) => s.revenue, fmt: rub },
+  { label: "Заказы", hint: "гросс", pick: (s) => s.orders, fmt: num, fmtAbs: numAbs },
+  { label: "Выручка", hint: "не отменённые", pick: (s) => s.revenue, fmt: rub, fmtAbs: rubAbs },
   {
     label: "Оплата",
     hint: "от оформленных",
     pick: (s) => s.paidRate,
     fmt: (n) => pct(n),
+    fmtAbs: ppAbs,
     invertDelta: false,
   },
   {
@@ -29,6 +32,7 @@ const KPIS: KpiDef[] = [
     hint: "% заказов",
     pick: (s) => s.freeDeliveryRate,
     fmt: (n) => pct(n),
+    fmtAbs: ppAbs,
   },
 ];
 
@@ -57,11 +61,13 @@ function SummaryRow({
   current,
   prev,
   highlight,
+  showCompare,
 }: {
   title: string;
   current: LogisticsSummary;
   prev: LogisticsSummary;
   highlight?: boolean;
+  showCompare?: boolean;
 }) {
   return (
     <tr className={highlight ? "bg-indigo-50/50" : ""}>
@@ -69,16 +75,18 @@ function SummaryRow({
       {KPIS.map((k) => (
         <td key={k.label} className="px-2 py-2 text-right tabular-nums text-sm text-slate-700">
           <div>{k.fmt(k.pick(current))}</div>
-          <div className="mt-0.5 flex justify-end">
-            <DeltaBadge d={delta(k.pick(current), k.pick(prev))} invert={k.invertDelta} />
-          </div>
+          {showCompare && (
+            <div className="mt-0.5 flex justify-end">
+              <DeltaBadge d={delta(k.pick(current), k.pick(prev))} invert={k.invertDelta} fmtAbs={k.fmtAbs} />
+            </div>
+          )}
         </td>
       ))}
     </tr>
   );
 }
 
-export default function LogisticsTab({ report }: Props) {
+export default function LogisticsTab({ report, showCompare = true }: Props) {
   const { current, prev, period, previous } = report;
 
   const svcTotal = current.byService.reduce(
@@ -121,14 +129,18 @@ export default function LogisticsTab({ report }: Props) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{k.label}</div>
             {k.hint && <div className="text-[10px] text-slate-400">{k.hint}</div>}
             <div className="mt-2 text-lg font-bold text-ink">{k.fmt(k.pick(current.summary))}</div>
-            <DeltaBadge d={delta(k.pick(current.summary), k.pick(prev.summary))} />
+            {showCompare && (
+              <DeltaBadge d={delta(k.pick(current.summary), k.pick(prev.summary))} fmtAbs={k.fmtAbs} />
+            )}
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-slate-500">
-        Период {period.start} — {period.end} · сравнение с {previous.start} — {previous.end}
-      </p>
+      {showCompare && (
+        <p className="text-xs text-slate-500">
+          Период {period.start} — {period.end} · сравнение с {previous.start} — {previous.end}
+        </p>
+      )}
 
       {current.cohorts && (
         <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -152,11 +164,13 @@ export default function LogisticsTab({ report }: Props) {
                 current={current.cohorts.pilot}
                 prev={prev.cohorts?.pilot ?? current.cohorts.pilot}
                 highlight
+                showCompare={showCompare}
               />
               <SummaryRow
                 title="Контроль"
                 current={current.cohorts.control}
                 prev={prev.cohorts?.control ?? current.cohorts.control}
+                showCompare={showCompare}
               />
             </tbody>
             <tfoot>
@@ -174,9 +188,11 @@ export default function LogisticsTab({ report }: Props) {
                       className="px-2 py-2 text-right font-semibold tabular-nums text-sm text-slate-800"
                     >
                       <div>{k.fmt(k.pick(curTotal))}</div>
-                      <div className="mt-0.5 flex justify-end">
-                        <DeltaBadge d={delta(k.pick(curTotal), k.pick(prevTotal))} invert={k.invertDelta} />
-                      </div>
+                      {showCompare && (
+                        <div className="mt-0.5 flex justify-end">
+                          <DeltaBadge d={delta(k.pick(curTotal), k.pick(prevTotal))} invert={k.invertDelta} fmtAbs={k.fmtAbs} />
+                        </div>
+                      )}
                     </td>
                   );
                 })}
@@ -211,16 +227,20 @@ export default function LogisticsTab({ report }: Props) {
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums">
                       <div>{num(r.orders)}</div>
-                      <div className="mt-0.5 flex justify-end">
-                        <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} />
-                      </div>
+                      {showCompare && (
+                        <div className="mt-0.5 flex justify-end">
+                          <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} fmtAbs={numAbs} />
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
                     <td className="px-2 py-2 text-right tabular-nums">
                       <div>{num(r.paidOrders)}</div>
-                      <div className="mt-0.5 flex justify-end">
-                        <DeltaBadge d={delta(r.paidOrders, p?.paidOrders ?? 0)} />
-                      </div>
+                      {showCompare && (
+                        <div className="mt-0.5 flex justify-end">
+                          <DeltaBadge d={delta(r.paidOrders, p?.paidOrders ?? 0)} fmtAbs={numAbs} />
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums text-slate-500">
                       {rate(r.paidOrders, svcTotal.paid)}
@@ -235,16 +255,20 @@ export default function LogisticsTab({ report }: Props) {
                 <td className="py-2 pr-2">Итого</td>
                 <td className="px-2 py-2 text-right tabular-nums">
                   <div>{num(svcTotal.orders)}</div>
-                  <div className="mt-0.5 flex justify-end">
-                    <DeltaBadge d={delta(svcTotal.orders, svcTotalPrev.orders)} />
-                  </div>
+                  {showCompare && (
+                    <div className="mt-0.5 flex justify-end">
+                      <DeltaBadge d={delta(svcTotal.orders, svcTotalPrev.orders)} fmtAbs={numAbs} />
+                    </div>
+                  )}
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">
                   <div>{num(svcTotal.paid)}</div>
-                  <div className="mt-0.5 flex justify-end">
-                    <DeltaBadge d={delta(svcTotal.paid, svcTotalPrev.paid)} />
-                  </div>
+                  {showCompare && (
+                    <div className="mt-0.5 flex justify-end">
+                      <DeltaBadge d={delta(svcTotal.paid, svcTotalPrev.paid)} fmtAbs={numAbs} />
+                    </div>
+                  )}
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{rate(svcTotal.free, svcTotal.orders)}</td>
@@ -284,22 +308,28 @@ export default function LogisticsTab({ report }: Props) {
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">
                     <div>{num(r.orders)}</div>
-                    <div className="mt-0.5 flex justify-end">
-                      <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} />
-                    </div>
+                    {showCompare && (
+                      <div className="mt-0.5 flex justify-end">
+                        <DeltaBadge d={delta(r.orders, p?.orders ?? 0)} fmtAbs={numAbs} />
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(r.share)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">
                     <div>{rub(r.revenue)}</div>
-                    <div className="mt-0.5 flex justify-end">
-                      <DeltaBadge d={delta(r.revenue, p?.revenue ?? 0)} />
-                    </div>
+                    {showCompare && (
+                      <div className="mt-0.5 flex justify-end">
+                        <DeltaBadge d={delta(r.revenue, p?.revenue ?? 0)} fmtAbs={rubAbs} />
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">
                     <div>{pct(r.paidRate)}</div>
-                    <div className="mt-0.5 flex justify-end">
-                      <DeltaBadge d={delta(r.paidRate, p?.paidRate ?? 0)} />
-                    </div>
+                    {showCompare && (
+                      <div className="mt-0.5 flex justify-end">
+                        <DeltaBadge d={delta(r.paidRate, p?.paidRate ?? 0)} fmtAbs={ppAbs} />
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums">{pct(r.freeDeliveryRate)}</td>
                 </tr>
@@ -311,27 +341,34 @@ export default function LogisticsTab({ report }: Props) {
               <td className="py-2 pr-2">Итого</td>
               <td className="px-2 py-2 text-right tabular-nums">
                 <div>{num(cityTotal.orders)}</div>
-                <div className="mt-0.5 flex justify-end">
-                  <DeltaBadge d={delta(cityTotal.orders, cityTotalPrev.orders)} />
-                </div>
+                {showCompare && (
+                  <div className="mt-0.5 flex justify-end">
+                    <DeltaBadge d={delta(cityTotal.orders, cityTotalPrev.orders)} fmtAbs={numAbs} />
+                  </div>
+                )}
               </td>
               <td className="px-2 py-2 text-right tabular-nums text-slate-500">{pct(100)}</td>
               <td className="px-2 py-2 text-right tabular-nums">
                 <div>{rub(cityTotal.revenue)}</div>
-                <div className="mt-0.5 flex justify-end">
-                  <DeltaBadge d={delta(cityTotal.revenue, cityTotalPrev.revenue)} />
-                </div>
+                {showCompare && (
+                  <div className="mt-0.5 flex justify-end">
+                    <DeltaBadge d={delta(cityTotal.revenue, cityTotalPrev.revenue)} fmtAbs={rubAbs} />
+                  </div>
+                )}
               </td>
               <td className="px-2 py-2 text-right tabular-nums">
                 <div>{rate(cityTotal.paid, cityTotal.orders)}</div>
-                <div className="mt-0.5 flex justify-end">
-                  <DeltaBadge
-                    d={delta(
-                      prevPaidRate(cityTotal.orders, cityTotal.paid),
-                      prevPaidRate(cityTotalPrev.orders, cityTotalPrev.paid)
-                    )}
-                  />
-                </div>
+                {showCompare && (
+                  <div className="mt-0.5 flex justify-end">
+                    <DeltaBadge
+                      d={delta(
+                        prevPaidRate(cityTotal.orders, cityTotal.paid),
+                        prevPaidRate(cityTotalPrev.orders, cityTotalPrev.paid)
+                      )}
+                      fmtAbs={ppAbs}
+                    />
+                  </div>
+                )}
               </td>
               <td className="px-2 py-2 text-right tabular-nums">{rate(cityTotal.free, cityTotal.orders)}</td>
             </tr>

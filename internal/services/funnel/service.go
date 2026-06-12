@@ -16,9 +16,32 @@ type Service struct {
 
 func NewService(repo *Repository) *Service { return &Service{repo: repo} }
 
+// resolvePrevRange возвращает диапазон для сравнения. Если compareStart и compareEnd
+// заданы — используется он (с нормализацией порядка). Иначе — предыдущий период той
+// же длины непосредственно перед текущим (поведение по умолчанию).
+func resolvePrevRange(st, en time.Time, days int, compareStart, compareEnd string) (time.Time, time.Time, error) {
+	if compareStart == "" || compareEnd == "" {
+		prevEnd := st.AddDate(0, 0, -1)
+		prevStart := prevEnd.AddDate(0, 0, -(days - 1))
+		return prevStart, prevEnd, nil
+	}
+	ps, err := time.Parse(dateLayout, compareStart)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("неверная дата сравнения: %w", err)
+	}
+	pe, err := time.Parse(dateLayout, compareEnd)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("неверная дата сравнения: %w", err)
+	}
+	if ps.After(pe) {
+		ps, pe = pe, ps
+	}
+	return ps, pe, nil
+}
+
 // Report строит воронку за период [start,end] с опциональным фильтром по городу
 // и/или области. Пустые даты — последняя неделя данных.
-func (s *Service) Report(start, end string, f Filters) (*Funnel, error) {
+func (s *Service) Report(start, end, compareStart, compareEnd string, f Filters) (*Funnel, error) {
 	start, end, err := s.resolveRange(start, end)
 	if err != nil {
 		return nil, err
@@ -35,6 +58,13 @@ func (s *Service) Report(start, end string, f Filters) (*Funnel, error) {
 		st, en = en, st
 	}
 	days := int(en.Sub(st).Hours()/24) + 1
+
+	prevStart, prevEnd, err := resolvePrevRange(st, en, days, compareStart, compareEnd)
+	if err != nil {
+		return nil, err
+	}
+	prevDays := int(prevEnd.Sub(prevStart).Hours()/24) + 1
+
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
@@ -44,6 +74,17 @@ func (s *Service) Report(start, end string, f Filters) (*Funnel, error) {
 	}
 
 	stages := s.buildStages(c)
+
+	prevStartTs := prevStart.Format(dateLayout) + " 00:00:00"
+	prevEndTs := prevEnd.Format(dateLayout) + " 23:59:59"
+	pc, err := s.repo.reach(prevStartTs, prevEndTs, f)
+	if err != nil {
+		return nil, err
+	}
+	prevStages := s.buildStages(pc)
+	if prevStages == nil {
+		prevStages = []Stage{}
+	}
 
 	segs := make([]SegmentGroup, 0, 4)
 	for _, def := range []struct{ by, col, label string }{
@@ -83,7 +124,9 @@ func (s *Service) Report(start, end string, f Filters) (*Funnel, error) {
 
 	return &Funnel{
 		Period:           Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
+		Previous:         Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: prevDays},
 		Stages:           stages,
+		PrevStages:       prevStages,
 		Gross:            c.orders["created"],
 		Canceled:         c.canceled,
 		Returns:          c.returns,

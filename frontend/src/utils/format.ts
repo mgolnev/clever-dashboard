@@ -29,3 +29,42 @@ export function deltaText(d: Delta): string {
   const sign = d.ratio > 0 ? "+" : "";
   return `${sign}${d.ratio.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
 }
+
+export function rubAbs(n: number): string {
+  const sign = n > 0 ? "+" : "";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) {
+    const val = n / 1_000_000;
+    return `${sign}${val.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн ₽`;
+  }
+  if (abs >= 1_000) {
+    const val = n / 1_000;
+    return `${sign}${val.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} тыс. ₽`;
+  }
+  return `${sign}${new Intl.NumberFormat("ru-RU").format(n)} ₽`;
+}
+
+export function numAbs(n: number): string {
+  const sign = n > 0 ? "+" : "";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) {
+    const val = n / 1_000_000;
+    return `${sign}${val.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`;
+  }
+  if (abs >= 10_000) {
+    const val = n / 1_000;
+    return `${sign}${val.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} тыс.`;
+  }
+  return `${sign}${new Intl.NumberFormat("ru-RU").format(n)}`;
+}
+
+export function ppAbs(n: number): string {
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} п.п.`;
+}
+
+export function floatAbs(n: number): string {
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+

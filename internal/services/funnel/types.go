@@ -57,6 +57,8 @@ type Funnel struct {
 	Segments         []SegmentGroup `json:"segments"`
 	TopProblems      []LabeledCount `json:"topProblems"`
 	TopCancelReasons []LabeledCount `json:"topCancelReasons"`
+	Previous         Range          `json:"previous"`
+	PrevStages       []Stage        `json:"prevStages"`
 }
 
 // стадии воронки и их подписи.

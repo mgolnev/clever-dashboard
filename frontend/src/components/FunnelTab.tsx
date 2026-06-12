@@ -6,6 +6,7 @@ import ProblemsPanel from "./ProblemsPanel";
 
 interface Props {
   report: FunnelReport;
+  showCompare?: boolean;
 }
 
 // worstPayment ищет способ оплаты с худшей оплачиваемостью среди значимых по объёму.
@@ -17,7 +18,7 @@ function worstPayment(report: FunnelReport): SegmentRow | null {
   return significant.reduce((w, r) => (r.cancelRate > w.cancelRate ? r : w));
 }
 
-export default function FunnelTab({ report }: Props) {
+export default function FunnelTab({ report, showCompare = true }: Props) {
   const paid = report.stages.find((s) => s.key === "paid");
   const worst = worstPayment(report);
 
@@ -43,7 +44,7 @@ export default function FunnelTab({ report }: Props) {
         </ul>
       </div>
 
-      <FunnelChart stages={report.stages} />
+      <FunnelChart stages={report.stages} prevStages={report.prevStages} showCompare={showCompare} />
       <SegmentFunnel segments={report.segments} />
       <ProblemsPanel report={report} />
     </div>

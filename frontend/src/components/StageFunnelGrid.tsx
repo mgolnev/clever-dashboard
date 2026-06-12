@@ -1,5 +1,5 @@
 import type { KPIStages, StageKPI } from "../types";
-import { delta, pct } from "../utils/format";
+import { delta, pct, ppAbs } from "../utils/format";
 import DeltaBadge from "./DeltaBadge";
 
 type StageKey = keyof KPIStages;
@@ -17,6 +17,7 @@ export interface StageMetricDef {
   additive?: boolean;
   pick: (s: StageKPI) => number;
   fmt: (s: StageKPI) => string;
+  fmtAbs?: (n: number) => string;
 }
 
 export interface RatioDef {
@@ -35,6 +36,7 @@ export interface RateCardDef {
   prv: number;
   invert?: boolean;
   hint?: string;
+  fmtAbs?: (n: number) => string;
 }
 
 interface Props {
@@ -43,6 +45,7 @@ interface Props {
   metrics: StageMetricDef[];
   ratios?: RatioDef[];
   rates?: RateCardDef[];
+  showCompare?: boolean;
 }
 
 function sharePct(value: number, base: number): string {
@@ -63,13 +66,14 @@ export default function StageFunnelGrid({
   metrics,
   ratios = [],
   rates = [],
+  showCompare = true,
 }: Props) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4">
         {metrics.map((m) => (
           <div key={m.label} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline justify-between mb-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-ink">{m.label}</span>
               {m.hint && <span className="text-[11px] text-slate-400">{m.hint}</span>}
             </div>
@@ -79,15 +83,22 @@ export default function StageFunnelGrid({
                 const ps = prevStages[st.key];
                 const base = m.pick(currentStages.created);
                 return (
-                  <div key={st.key} className="flex items-center justify-between gap-2">
-                    <span className="w-[68px] shrink-0 text-xs font-medium text-ink">{st.label}</span>
-                    <span className="w-10 shrink-0 text-right text-xs tabular-nums text-ink">
+                  <div key={st.key} className="flex items-center justify-between gap-2 border-b border-slate-50 pb-1.5 last:border-0 last:pb-0">
+                    <span className="w-[80px] shrink-0 text-xs font-medium text-ink">{st.label}</span>
+                    <span className="w-12 shrink-0 text-right text-xs tabular-nums text-ink">
                       {m.additive ? sharePct(m.pick(cs), base) : ""}
                     </span>
                     <span className="flex-1 text-right text-sm font-semibold text-ink">{m.fmt(cs)}</span>
-                    <span className="w-[72px] shrink-0 text-right">
-                      <DeltaBadge d={delta(m.pick(cs), m.pick(ps))} />
-                    </span>
+                    {showCompare && (
+                      <>
+                        <span className="w-[84px] shrink-0 text-right">
+                          <DeltaBadge d={delta(m.pick(cs), m.pick(ps))} mode="pct" />
+                        </span>
+                        <span className="w-[120px] shrink-0 text-right">
+                          <DeltaBadge d={delta(m.pick(cs), m.pick(ps))} mode="abs" fmtAbs={m.fmtAbs} />
+                        </span>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -98,12 +109,19 @@ export default function StageFunnelGrid({
                   const cv = ratioValue(currentStages, m, rt);
                   const pv = ratioValue(prevStages, m, rt);
                   return (
-                    <div key={rt.label} className="flex items-center justify-between gap-2" title={rt.hint}>
-                      <span className="w-[72px] shrink-0 text-xs font-medium text-ink">{rt.label}</span>
+                    <div key={rt.label} className="flex items-center justify-between gap-2 border-b border-slate-50/50 pb-1.5 last:border-0 last:pb-0" title={rt.hint}>
+                      <span className="w-[80px] shrink-0 text-xs font-medium text-ink">{rt.label}</span>
                       <span className="flex-1 text-right text-sm font-medium text-ink">{pct(cv)}</span>
-                      <span className="w-[72px] shrink-0 text-right">
-                        <DeltaBadge d={delta(cv, pv)} invert={rt.invert} />
-                      </span>
+                      {showCompare && (
+                        <>
+                          <span className="w-[84px] shrink-0 text-right">
+                            <DeltaBadge d={delta(cv, pv)} invert={rt.invert} mode="pct" />
+                          </span>
+                          <span className="w-[120px] shrink-0 text-right">
+                            <DeltaBadge d={delta(cv, pv)} invert={rt.invert} mode="abs" fmtAbs={ppAbs} />
+                          </span>
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -120,7 +138,9 @@ export default function StageFunnelGrid({
               <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{c.label}</div>
               <div className="mt-1 text-lg font-semibold text-ink">{c.value}</div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <DeltaBadge d={delta(c.cur, c.prv)} invert={c.invert} />
+                {showCompare && (
+                  <DeltaBadge d={delta(c.cur, c.prv)} invert={c.invert} fmtAbs={c.fmtAbs} />
+                )}
                 {c.hint && <span className="text-[11px] text-slate-400">{c.hint}</span>}
               </div>
             </div>
