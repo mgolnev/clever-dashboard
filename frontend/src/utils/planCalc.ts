@@ -39,7 +39,9 @@ export function monthRange(year: number, month: number): { start: string; end: s
 }
 
 export function extractMetrics(kpi: KPI, visits: number): ChannelMetrics {
-  const orders = kpi.orders;
+  // База воронки — не отменённые заказы: так CR/AOV согласованы с выручкой
+  // (kpi.revenue считается без отмен) и AOV совпадает с kpi.aov бэкенда.
+  const orders = kpi.netOrders;
   const revenue = kpi.revenue;
   const netRevenue = kpi.stages.completed.revenue;
   const cr = visits > 0 ? orders / visits : 0;

@@ -80,4 +80,50 @@ func TestValidation(t *testing.T) {
 	if _, err := svc.Save(2026, []TrafficItem{{Month: 1, Channel: "site", Visits: -1}}); err == nil {
 		t.Error("expected visits validation error")
 	}
+	if _, err := svc.Save(2026, []TrafficItem{{Month: 1, Channel: "site", Visits: 1, Source: "ga"}}); err == nil {
+		t.Error("expected source validation error")
+	}
+}
+
+func TestAutoSourceOverridesManual(t *testing.T) {
+	svc := NewService(NewRepository(testDB(t)))
+	// Ручной ввод и авто-источник за один (месяц, канал) — авто должен победить.
+	if _, err := svc.Save(2026, []TrafficItem{
+		{Month: 3, Channel: "site", Visits: 100, Source: SourceManual},
+		{Month: 3, Channel: "app", Visits: 70, Source: SourceManual},
+	}); err != nil {
+		t.Fatalf("save manual: %v", err)
+	}
+	if _, err := svc.Save(2026, []TrafficItem{
+		{Month: 3, Channel: "site", Visits: 500, Source: SourceMetrika},
+	}); err != nil {
+		t.Fatalf("save auto: %v", err)
+	}
+
+	rep, err := svc.Get(2026)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	mar := rep.Months[2]
+	if mar.Site != 500 || mar.SiteSource != SourceMetrika {
+		t.Errorf("site = %d (%s), want 500 (metrika)", mar.Site, mar.SiteSource)
+	}
+	// app без авто-источника — остаётся ручной ввод как fallback.
+	if mar.App != 70 || mar.AppSource != SourceManual {
+		t.Errorf("app = %d (%s), want 70 (manual)", mar.App, mar.AppSource)
+	}
+}
+
+func TestSaveDefaultsSourceToManual(t *testing.T) {
+	svc := NewService(NewRepository(testDB(t)))
+	if _, err := svc.Save(2026, []TrafficItem{{Month: 6, Channel: "site", Visits: 42}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	rep, err := svc.Get(2026)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if jun := rep.Months[5]; jun.Site != 42 || jun.SiteSource != SourceManual {
+		t.Errorf("site = %d (%s), want 42 (manual)", jun.Site, jun.SiteSource)
+	}
 }

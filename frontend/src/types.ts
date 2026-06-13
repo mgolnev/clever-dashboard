@@ -128,6 +128,8 @@ export interface TrafficMonth {
   month: number;
   site: number;
   app: number;
+  siteSource?: string;
+  appSource?: string;
 }
 
 export interface TrafficReport {
