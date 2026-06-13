@@ -130,4 +130,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ year, items }),
     }).then((r) => handle<TrafficReport>(r)),
+
+  localFiles: () => fetch("/api/import/local").then((r) => handle<string[]>(r)),
+
+  importLocalFile: (filename: string) =>
+    fetch("/api/import/local", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename }),
+    }).then((r) => handle<ImportResult>(r)),
 };

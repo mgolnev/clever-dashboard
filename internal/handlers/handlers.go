@@ -4,7 +4,10 @@ package handlers
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/clever/clever-dashboard/internal/container"
@@ -26,6 +29,8 @@ func (h *Handler) Register(app *fiber.App) {
 	api := app.Group("/api")
 	api.Get("/health", h.health)
 	api.Post("/import", h.importFile)
+	api.Get("/import/local", h.localFiles)
+	api.Post("/import/local", h.importLocalFile)
 	api.Get("/bounds", h.bounds)
 	api.Get("/cities", h.cities)
 	api.Get("/regions", h.regions)
@@ -63,6 +68,58 @@ func (h *Handler) importFile(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "ошибка чтения файла")
 	}
 	res, err := h.c.Orders.ImportFile(fh.Filename, data)
+	if err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+	return c.JSON(res)
+}
+
+// localFiles возвращает список доступных для импорта файлов в папке данных (data/ или /data).
+func (h *Handler) localFiles(c *fiber.Ctx) error {
+	dir := filepath.Dir(h.c.Cfg.DBDSN)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return c.JSON([]string{})
+	}
+	var list []string
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		name := f.Name()
+		ext := strings.ToLower(filepath.Ext(name))
+		// Игнорируем файлы SQLite и скрытые файлы
+		if ext == ".db" || ext == "-wal" || ext == "-shm" || strings.HasPrefix(name, ".") || strings.Contains(name, "clever.db") {
+			continue
+		}
+		list = append(list, name)
+	}
+	return c.JSON(list)
+}
+
+// importLocalFile выполняет импорт файла, находящегося локально на сервере в папке данных.
+func (h *Handler) importLocalFile(c *fiber.Ctx) error {
+	type Req struct {
+		Filename string `json:"filename"`
+	}
+	var req Req
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "неверное тело запроса")
+	}
+	if req.Filename == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "требуется имя файла")
+	}
+
+	filename := filepath.Base(req.Filename)
+	dir := filepath.Dir(h.c.Cfg.DBDSN)
+	fullPath := filepath.Join(dir, filename)
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "не удалось открыть файл: "+err.Error())
+	}
+
+	res, err := h.c.Orders.ImportFile(filename, data)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
