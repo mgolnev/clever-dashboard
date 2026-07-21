@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/clever/clever-dashboard/internal/db"
+	"github.com/clever/clever-dashboard/internal/orderstage"
 )
 
 type Repository struct {
@@ -148,30 +149,33 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 
 	// Выручка по стадиям (оформлено / оплачено / транзит / выкуплено) и
 	// служебные знаменатели terminal / paid+terminal для G2N/P2N.
-	const transitCond = "status_stage IN ('new','processing','shipped','in_pvz')"
-	const termCond = "status_stage IN ('completed','canceled','closed','returned')"
+	const transitCond = orderstage.InTransit
+	const termCond = orderstage.Terminal
 	const custFilter = "customer IS NOT NULL AND customer <> ''"
 	tv := trueVal(r.db)
+	condPaid := orderstage.PaidReachSQL(tv)
+	condPaidJoin := orderstage.PaidReachSQL(tv, "o.")
 	var grossRev, paidRev, transitRev, compRev, termRev, paidTermRev int
-	var paidTermOrders int
+	var paidReachOrders, paidTermOrders int
 	var grossCust, paidCust, transitCust, compCust, termCust, paidTermCust int
 	rq := r.db.Rebind(`SELECT
 		COALESCE(SUM(total_amount),0),
-		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` THEN total_amount ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + condPaid + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + transitCond + ` THEN total_amount ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN status_stage = 'completed' THEN total_amount ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.Completed + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + termCond + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN total_amount ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + condPaid + ` THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN 1 ELSE 0 END),0),
 		COUNT(DISTINCT CASE WHEN ` + custFilter + ` THEN customer END),
-		COUNT(DISTINCT CASE WHEN is_paid = ` + tv + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + condPaid + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN ` + transitCond + ` AND ` + custFilter + ` THEN customer END),
-		COUNT(DISTINCT CASE WHEN status_stage = 'completed' AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + orderstage.Completed + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN ` + termCond + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` AND ` + custFilter + ` THEN customer END)
 		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
 	if err := r.db.QueryRow(rq, append([]interface{}{start, end}, cargs...)...).Scan(
-		&grossRev, &paidRev, &transitRev, &compRev, &termRev, &paidTermRev, &paidTermOrders,
+		&grossRev, &paidRev, &transitRev, &compRev, &termRev, &paidTermRev, &paidReachOrders, &paidTermOrders,
 		&grossCust, &paidCust, &transitCust, &compCust, &termCust, &paidTermCust); err != nil {
 		return k, err
 	}
@@ -194,9 +198,9 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	var grossUnits, paidUnits, transitUnits, compUnits, termUnits, paidTermUnits int
 	suq := r.db.Rebind(`SELECT
 		COALESCE(SUM(oi.qty),0),
-		COALESCE(SUM(CASE WHEN o.is_paid = ` + tv + ` THEN oi.qty ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + condPaidJoin + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.` + transitCond + ` THEN oi.qty ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN o.status_stage = 'completed' THEN oi.qty ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN o.` + orderstage.Completed + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.` + termCond + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.is_paid = ` + tv + ` AND o.` + termCond + ` THEN oi.qty ELSE 0 END),0)
 		FROM order_items oi JOIN orders o ON o.order_number = oi.order_number
@@ -207,7 +211,7 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	}
 	k.Stages = KPIStages{
 		Created:      makeStage(k.Orders, grossRev, grossUnits, grossCust),
-		Paid:         makeStage(k.PaidOrders, paidRev, paidUnits, paidCust),
+		Paid:         makeStage(paidReachOrders, paidRev, paidUnits, paidCust),
 		InTransit:    makeStage(k.InTransit, transitRev, transitUnits, transitCust),
 		Completed:    makeStage(k.Completed, compRev, compUnits, compCust),
 		Terminal:     makeStage(k.Terminal, termRev, termUnits, termCust),

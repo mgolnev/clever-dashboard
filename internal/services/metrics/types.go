@@ -47,7 +47,7 @@ type StageKPI struct {
 // «в конечном статусе» (исключают заказы в транзите).
 type KPIStages struct {
 	Created      StageKPI `json:"created"`      // оформлено (гросс — все заказы периода)
-	Paid         StageKPI `json:"paid"`         // оплачено (is_paid)
+	Paid         StageKPI `json:"paid"`         // оплачено (кумулятивно: is_paid или продвинулся дальше)
 	InTransit    StageKPI `json:"inTransit"`    // в пути (не в конечном статусе)
 	Completed    StageKPI `json:"completed"`    // выкуплено (status_stage=completed)
 	Terminal     StageKPI `json:"terminal"`     // в конечном статусе (completed/canceled/closed/returned)
