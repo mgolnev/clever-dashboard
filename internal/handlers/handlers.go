@@ -52,7 +52,8 @@ func (h *Handler) health(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "ok"})
 }
 
-// importFile принимает multipart-файл выгрузки Битрикса (поле "file").
+// importFile принимает multipart-файл выгрузки Битрикса (поле "file")
+// и полностью заменяет витрину заказов содержимым файла.
 func (h *Handler) importFile(c *fiber.Ctx) error {
 	fh, err := c.FormFile("file")
 	if err != nil {

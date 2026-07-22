@@ -53,4 +53,6 @@ type ImportResult struct {
 	ItemsImported  int        `json:"itemsImported"`
 	PeriodStart    *time.Time `json:"periodStart"`
 	PeriodEnd      *time.Time `json:"periodEnd"`
+	// OrdersCleared — сколько заказов удалено перед загрузкой нового файла.
+	OrdersCleared int `json:"ordersCleared"`
 }

@@ -35,7 +35,7 @@ export default function UploadCard({ onImported }: Props) {
       const res = await api.importFile(file);
       setResult(res);
       onImported();
-      loadLocalFiles(); // Обновим список, если там что-то изменилось
+      loadLocalFiles();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка загрузки");
     } finally {
@@ -77,6 +77,7 @@ export default function UploadCard({ onImported }: Props) {
         {result && !busy && (
           <span className="text-sm text-emerald-700">
             Успешно импортировано: {num(result.ordersImported)} заказов, {num(result.itemsImported)} позиций
+            {result.ordersCleared > 0 && ` · удалено предыдущих ${num(result.ordersCleared)}`}
             {result.periodStart && ` · ${result.periodStart.slice(0, 10)} — ${result.periodEnd?.slice(0, 10)}`}
           </span>
         )}
@@ -84,7 +85,7 @@ export default function UploadCard({ onImported }: Props) {
       </div>
 
       <p className="text-xs text-slate-400">
-        Загрузите выгрузку заказов из Битрикса (XLS/HTML или CSV). Повторная загрузка обновляет данные по номеру заказа.
+        Загрузите выгрузку заказов из Битрикса (XLS/HTML или CSV). Каждый импорт полностью заменяет данные заказов содержимым файла.
       </p>
 
       {localFiles.length > 0 && (
@@ -109,7 +110,7 @@ export default function UploadCard({ onImported }: Props) {
       )}
 
       <div className="rounded bg-slate-50 p-2 text-[11px] text-slate-500">
-        💡 <strong>Совет для тяжелых файлов:</strong> Если файл весит больше 10 МБ, облако Amvera может выдать ошибку <em>Payload too large</em> на уровне Nginx. 
+        💡 <strong>Совет для тяжелых файлов:</strong> Если файл весит больше 10 МБ, облако Amvera может выдать ошибку <em>Payload too large</em> на уровне Nginx.
         Чтобы обойти это, просто загрузите файл через панель Amvera во вкладку <strong>«Файлы»</strong> (или по SFTP) напрямую в папку данных приложения. После этого файл появится выше и вы сможете импортировать его за секунду.
       </div>
     </div>

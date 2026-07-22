@@ -194,6 +194,7 @@ export interface ImportResult {
   itemsImported: number;
   periodStart: string | null;
   periodEnd: string | null;
+  ordersCleared: number;
 }
 
 export interface LogisticsSummary {

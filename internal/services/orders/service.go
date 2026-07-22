@@ -15,8 +15,8 @@ type Service struct {
 
 func NewService(repo *Repository) *Service { return &Service{repo: repo} }
 
-// ImportFile парсит файл выгрузки, нормализует заказы и сохраняет их
-// идемпотентно (дедуп по номеру заказа).
+// ImportFile парсит файл выгрузки и полностью заменяет витрину заказов:
+// старые orders/order_items удаляются, остаются только строки из текущего файла.
 func (s *Service) ImportFile(filename string, data []byte) (*model.ImportResult, error) {
 	records, err := ingestion.ParseFile(data)
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *Service) ImportFile(filename string, data []byte) (*model.ImportResult,
 	if err != nil {
 		return nil, fmt.Errorf("создать запись импорта: %w", err)
 	}
-	itemsN, err := s.repo.saveOrders(orders, importID)
+	itemsN, cleared, err := s.repo.saveOrders(orders, importID)
 	if err != nil {
 		return nil, fmt.Errorf("сохранить заказы: %w", err)
 	}
@@ -47,6 +47,7 @@ func (s *Service) ImportFile(filename string, data []byte) (*model.ImportResult,
 		ItemsImported:  itemsN,
 		PeriodStart:    start,
 		PeriodEnd:      end,
+		OrdersCleared:  cleared,
 	}, nil
 }
 

@@ -40,64 +40,59 @@ func (r *Repository) updateImportStats(id int64, ordersN, itemsN int) error {
 	return err
 }
 
-// saveOrders выполняет идемпотентный upsert заказов и их позиций в транзакции.
-func (r *Repository) saveOrders(orders []model.Order, importID int64) (int, error) {
+// saveOrders в одной транзакции очищает витрину и вставляет заказы из файла.
+// Возвращает число сохранённых позиций и число удалённых заказов.
+func (r *Repository) saveOrders(orders []model.Order, importID int64) (itemsTotal int, cleared int, err error) {
 	tx, err := r.db.Begin()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer tx.Rollback()
 
-	upsert := r.db.Rebind(`INSERT INTO orders (
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM orders`).Scan(&cleared); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`DELETE FROM order_items`); err != nil {
+		return 0, 0, err
+	}
+	if _, err := tx.Exec(`DELETE FROM orders`); err != nil {
+		return 0, 0, err
+	}
+
+	insOrder := r.db.Rebind(`INSERT INTO orders (
 		order_number, created_at, updated_at, customer, email, phone,
 		total_amount, delivery_cost, status_raw, status_stage, is_paid, is_canceled,
 		payment_system, delivery_service, channel, coupon, region, city, location_raw,
 		has_problem, problem_desc, cancel_reason, items_count, import_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-	ON CONFLICT(order_number) DO UPDATE SET
-		created_at=excluded.created_at, updated_at=excluded.updated_at,
-		customer=excluded.customer, email=excluded.email, phone=excluded.phone,
-		total_amount=excluded.total_amount, delivery_cost=excluded.delivery_cost,
-		status_raw=excluded.status_raw, status_stage=excluded.status_stage,
-		is_paid=excluded.is_paid, is_canceled=excluded.is_canceled,
-		payment_system=excluded.payment_system, delivery_service=excluded.delivery_service,
-		channel=excluded.channel, coupon=excluded.coupon, region=excluded.region, city=excluded.city,
-		location_raw=excluded.location_raw, has_problem=excluded.has_problem,
-		problem_desc=excluded.problem_desc, cancel_reason=excluded.cancel_reason,
-		items_count=excluded.items_count, import_id=excluded.import_id`)
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 
-	delItems := r.db.Rebind(`DELETE FROM order_items WHERE order_number = ?`)
 	insItem := r.db.Rebind(`INSERT INTO order_items (
 		order_number, offer_id, name, qty, price, line_sum, brand, category, gender, size, import_id
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
 
-	itemsTotal := 0
 	for _, o := range orders {
-		if _, err := tx.Exec(upsert,
+		if _, err := tx.Exec(insOrder,
 			o.OrderNumber, nullTime(o.CreatedAt), nullTime(o.UpdatedAt), o.Customer, o.Email, o.Phone,
 			o.TotalAmount, o.DeliveryCost, o.StatusRaw, o.StatusStage, o.IsPaid, o.IsCanceled,
 			o.PaymentSystem, o.DeliveryService, o.Channel, o.Coupon, o.Region, o.City, o.LocationRaw,
 			o.HasProblem, o.ProblemDesc, o.CancelReason, len(o.Items), importID,
 		); err != nil {
-			return 0, err
-		}
-		if _, err := tx.Exec(delItems, o.OrderNumber); err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		for _, it := range o.Items {
 			if _, err := tx.Exec(insItem,
 				o.OrderNumber, it.OfferID, it.Name, it.Qty, it.Price, it.LineSum,
 				it.Brand, it.Category, it.Gender, it.Size, importID,
 			); err != nil {
-				return 0, err
+				return 0, 0, err
 			}
 			itemsTotal++
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return itemsTotal, nil
+	return itemsTotal, cleared, nil
 }
 
 func ptrTime(t *time.Time) interface{} {
