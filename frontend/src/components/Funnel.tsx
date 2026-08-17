@@ -7,6 +7,7 @@ interface Props {
 
 const stageColor: Record<string, string> = {
   new: "bg-slate-400",
+  paid: "bg-emerald-400",
   processing: "bg-sky-400",
   shipped: "bg-indigo-400",
   in_pvz: "bg-violet-400",

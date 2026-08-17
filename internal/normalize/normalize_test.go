@@ -42,9 +42,9 @@ func TestStatusStage(t *testing.T) {
 	if got := StatusStage("Совершён возврат средств", false); got != StageReturned {
 		t.Errorf("полный возврат -> %q, ожидали returned", got)
 	}
-	// Статус «Оплачен» — заказ в обработке (в пути), а не «прочее».
-	if got := StatusStage("Оплачен", false); got != StageProcessing {
-		t.Errorf("оплачен -> %q, ожидали processing", got)
+	// Статус «Оплачен» — отдельная стадия до сборки/обработки.
+	if got := StatusStage("Оплачен", false); got != StagePaid {
+		t.Errorf("оплачен -> %q, ожидали paid", got)
 	}
 }
 

@@ -25,7 +25,7 @@ const COLUMNS: { key: SortKey; label: string; title?: string }[] = [
   { key: "orders", label: "Заказы", title: "Оформлено за период" },
   { key: "aov", label: "AOV", title: "Средний чек на заказ" },
   { key: "paidOrders", label: "Опл.", title: "Оплаченные заказы" },
-  { key: "inTransitOrders", label: "Транзит", title: "Заказы в пути (не финальный статус)" },
+  { key: "inTransitOrders", label: "Транзит", title: "Заказы отправлены или прибыли в ПВЗ" },
   { key: "completedOrders", label: "Выкуп", title: "Выкупленные заказы" },
   { key: "canceledOrders", label: "Отм.", title: "Отменённые заказы" },
   { key: "g2n", label: "G2N", title: "Выкуп / оформлено" },

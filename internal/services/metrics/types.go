@@ -9,24 +9,24 @@ type Range struct {
 
 // KPI — ключевые показатели за период.
 type KPI struct {
-	Orders         int     `json:"orders"`
-	NetOrders      int     `json:"netOrders"`
-	Revenue        int     `json:"revenue"`
-	AOV            int     `json:"aov"`
-	ASP            int     `json:"asp"`
-	PaidOrders     int     `json:"paidOrders"`
-	PaidRate       float64 `json:"paidRate"`
-	CanceledOrders int     `json:"canceledOrders"`
-	CanceledRate   float64 `json:"canceledRate"`
-	Units          int     `json:"units"`
-	Customers          int     `json:"customers"`
-	RepeatCustomers    int     `json:"repeatCustomers"`    // покупатели с 2+ заказами за период
-	CanceledCustomers  int     `json:"canceledCustomers"`  // покупатели с хотя бы одной отменой
-	Completed          int     `json:"completed"`          // выкуплено (status_stage=completed)
-	Terminal       int     `json:"terminal"`       // заказы в конечном статусе
-	InTransit      int     `json:"inTransit"`      // заказы «в пути» (не дошли до выкупа/отмены)
-	G2N            float64 `json:"g2n"`            // выкуплено / оформлено (гросс), %
-	RedemptionRate float64 `json:"redemptionRate"` // выкуплено / заказы в конечном статусе, %
+	Orders            int     `json:"orders"`
+	NetOrders         int     `json:"netOrders"`
+	Revenue           int     `json:"revenue"`
+	AOV               int     `json:"aov"`
+	ASP               int     `json:"asp"`
+	PaidOrders        int     `json:"paidOrders"`
+	PaidRate          float64 `json:"paidRate"`
+	CanceledOrders    int     `json:"canceledOrders"`
+	CanceledRate      float64 `json:"canceledRate"`
+	Units             int     `json:"units"`
+	Customers         int     `json:"customers"`
+	RepeatCustomers   int     `json:"repeatCustomers"`   // покупатели с 2+ заказами за период
+	CanceledCustomers int     `json:"canceledCustomers"` // покупатели с хотя бы одной отменой
+	Completed         int     `json:"completed"`         // выкуплено (status_stage=completed)
+	Terminal          int     `json:"terminal"`          // заказы в конечном статусе
+	InTransit         int     `json:"inTransit"`         // физически в доставке: отправлен или прибыл в ПВЗ
+	G2N               float64 `json:"g2n"`               // выкуплено / оформлено (гросс), %
+	RedemptionRate    float64 `json:"redemptionRate"`    // выкуплено / заказы в конечном статусе, %
 
 	Stages KPIStages `json:"stages"` // показатели по стадиям воронки
 }
@@ -37,9 +37,9 @@ type StageKPI struct {
 	Revenue   int     `json:"revenue"`
 	Units     int     `json:"units"`
 	Customers int     `json:"customers"` // уникальные покупатели на стадии
-	AOV     int     `json:"aov"` // средний чек на заказ
-	ASP     int     `json:"asp"` // средняя цена позиции
-	UPT     float64 `json:"upt"` // units per transaction (позиций на заказ)
+	AOV       int     `json:"aov"`       // средний чек на заказ
+	ASP       int     `json:"asp"`       // средняя цена позиции
+	UPT       float64 `json:"upt"`       // units per transaction (позиций на заказ)
 }
 
 // KPIStages — воронка «оформлено → оплачено → транзит → выкуплено» по абсолютам.
@@ -48,7 +48,7 @@ type StageKPI struct {
 type KPIStages struct {
 	Created      StageKPI `json:"created"`      // оформлено (гросс — все заказы периода)
 	Paid         StageKPI `json:"paid"`         // оплачено (кумулятивно: is_paid или продвинулся дальше)
-	InTransit    StageKPI `json:"inTransit"`    // в пути (не в конечном статусе)
+	InTransit    StageKPI `json:"inTransit"`    // физически в доставке: отправлен или прибыл в ПВЗ
 	Completed    StageKPI `json:"completed"`    // выкуплено (status_stage=completed)
 	Terminal     StageKPI `json:"terminal"`     // в конечном статусе (completed/canceled/closed/returned)
 	PaidTerminal StageKPI `json:"paidTerminal"` // оплачено и в конечном статусе
@@ -90,15 +90,15 @@ type CustomerRow struct {
 
 // PeriodMetrics — полный набор метрик за один период.
 type PeriodMetrics struct {
-	KPI         KPI           `json:"kpi"`
-	Funnel      []FunnelStage `json:"funnel"`
-	ByChannel   []NamedCount  `json:"byChannel"`
-	ByPayment   []NamedCount  `json:"byPayment"`
-	ByDelivery  []NamedCount  `json:"byDelivery"`
-	ByRegion    []NamedCount  `json:"byRegion"`
-	TopProducts []ProductRow  `json:"topProducts"`
-	ByCategory  []ProductRow  `json:"byCategory"`
-	ByGender    []ProductRow  `json:"byGender"`
+	KPI          KPI           `json:"kpi"`
+	Funnel       []FunnelStage `json:"funnel"`
+	ByChannel    []NamedCount  `json:"byChannel"`
+	ByPayment    []NamedCount  `json:"byPayment"`
+	ByDelivery   []NamedCount  `json:"byDelivery"`
+	ByRegion     []NamedCount  `json:"byRegion"`
+	TopProducts  []ProductRow  `json:"topProducts"`
+	ByCategory   []ProductRow  `json:"byCategory"`
+	ByGender     []ProductRow  `json:"byGender"`
 	ByBrand      []ProductRow  `json:"byBrand"`
 	TopCustomers []CustomerRow `json:"topCustomers"`
 }
@@ -113,6 +113,7 @@ type Report struct {
 
 var stageLabels = map[string]string{
 	"new":        "Новый",
+	"paid":       "Оплачен",
 	"processing": "В обработке",
 	"shipped":    "Отправлен",
 	"in_pvz":     "В ПВЗ",
@@ -124,4 +125,4 @@ var stageLabels = map[string]string{
 }
 
 // funnelOrder задаёт порядок стадий в воронке.
-var funnelOrder = []string{"new", "processing", "shipped", "in_pvz", "completed", "closed", "returned", "canceled"}
+var funnelOrder = []string{"new", "paid", "processing", "shipped", "in_pvz", "completed", "closed", "returned", "canceled"}

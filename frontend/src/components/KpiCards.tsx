@@ -23,7 +23,7 @@ export default function KpiCards({ current, prev, showCompare = true }: Props) {
     { label: "Отмены", value: pct(current.canceledRate), cur: current.canceledRate, prv: prev.canceledRate, invert: true, hint: `${num(current.canceledOrders)} зак.`, fmtAbs: ppAbs },
     { label: "G2N", value: pct(current.g2n), cur: current.g2n, prv: prev.g2n, hint: "выкуп / оформл.", fmtAbs: ppAbs },
     { label: "Выкупаемость", value: pct(current.redemptionRate), cur: current.redemptionRate, prv: prev.redemptionRate, hint: `из ${num(current.terminal)} в конечн.`, fmtAbs: ppAbs },
-    { label: "Заказы в пути", value: num(current.inTransit), cur: current.inTransit, prv: prev.inTransit, hint: "ещё не выкуп/отмена", fmtAbs: numAbs },
+    { label: "Заказы в пути", value: num(current.inTransit), cur: current.inTransit, prv: prev.inTransit, hint: "отправлен / в ПВЗ", fmtAbs: numAbs },
     { label: "Покупатели", value: num(current.customers), cur: current.customers, prv: prev.customers, fmtAbs: numAbs },
   ];
 

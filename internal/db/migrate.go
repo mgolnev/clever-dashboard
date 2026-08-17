@@ -126,6 +126,18 @@ func (d *DB) Migrate() error {
 	if _, err := d.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_coupon ON orders(coupon)`); err != nil {
 		return fmt.Errorf("migrate index: %w", err)
 	}
+
+	// До выделения самостоятельной стадии raw-статус «Оплачен» сохранялся как
+	// processing. Исправляем существующую витрину при старте, чтобы не требовать
+	// от пользователя повторного импорта.
+	falseValue := "0"
+	if d.IsPostgres() {
+		falseValue = "FALSE"
+	}
+	if _, err := d.Exec(`UPDATE orders SET status_stage = 'paid'
+		WHERE status_raw = 'Оплачен' AND is_canceled = ` + falseValue); err != nil {
+		return fmt.Errorf("migrate paid status: %w", err)
+	}
 	return nil
 }
 

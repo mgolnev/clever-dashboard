@@ -58,6 +58,7 @@ func Location(s string) (region, city string) {
 // Stage code-стадии воронки.
 const (
 	StageNew        = "new"
+	StagePaid       = "paid"
 	StageProcessing = "processing"
 	StageShipped    = "shipped"
 	StageInPVZ      = "in_pvz"
@@ -70,7 +71,7 @@ const (
 
 var statusMap = map[string]string{
 	"не подтвержден":   StageNew,
-	"оплачен":          StageProcessing,
+	"оплачен":          StagePaid,
 	"принят":           StageProcessing,
 	"обработан":        StageProcessing,
 	"ожидает отправку": StageProcessing,

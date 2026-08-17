@@ -91,7 +91,7 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 - `g2n` — выкуплено / оформлено (completed / orders), %.
 - `redemptionRate` — выкупаемость: completed / terminal (заказы в конечном статусе), %.
 - `terminal` — заказы в конечном статусе (completed/canceled/closed/returned).
-- `inTransit` — заказы «в пути» (new/processing/shipped/in_pvz), ещё не дошли до выкупа/отмены.
+- `inTransit` — физически в доставке: `shipped` («Отправлен») или `in_pvz` («Прибыл в ПВЗ»).
 
 Выручка (`revenue`) и `units` считаются по **не отменённым** заказам.
 
@@ -110,8 +110,8 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 ```
 
 - `created` (оформлено) — все заказы периода (гросс, выручка по `total_amount`).
-- `paid` (оплачено) — заказы с `is_paid`.
-- `inTransit` (транзит) — заказы не в конечном статусе (`new/processing/shipped/in_pvz`), ещё в пути.
+- `paid` (стадия «Оплачено») — заказы с `is_paid` либо со статусом `paid` и последующими стадиями; отдельный `kpi.paidOrders` остаётся строгим фактом оплаты по `is_paid`.
+- `inTransit` (транзит) — физически в доставке (`shipped`/`in_pvz`), ещё не выкуплены.
 - `completed` (выкуплено) — заказы со `status_stage='completed'`.
 - `terminal` — заказы в конечном статусе (`completed/canceled/closed/returned`); знаменатель для «в кон. статусе».
 - `paidTerminal` — оплаченные **и** в конечном статусе; знаменатель P2N «в кон. статусе».

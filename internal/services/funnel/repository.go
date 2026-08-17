@@ -72,7 +72,7 @@ type reachCounts struct {
 
 // предикаты накопительных стадий (без алиаса таблицы); %[1]s — boolTrue.
 const (
-	condPaid     = "is_paid = %[1]s OR status_stage IN ('processing','shipped','in_pvz','completed','returned')"
+	condPaid     = "is_paid = %[1]s OR status_stage IN ('paid','processing','shipped','in_pvz','completed','returned')"
 	condProc     = "status_stage IN ('processing','shipped','in_pvz','completed','returned')"
 	condShip     = "status_stage IN ('shipped','in_pvz','completed','returned')"
 	condDelivers = "status_stage IN ('in_pvz','completed','returned')"

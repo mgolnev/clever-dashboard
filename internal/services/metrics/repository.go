@@ -115,7 +115,7 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		COUNT(DISTINCT customer),
 		COALESCE(SUM(CASE WHEN status_stage = 'completed' THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage IN ('completed','canceled','closed','returned') THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN status_stage IN ('new','processing','shipped','in_pvz') THEN 1 ELSE 0 END),0)
+		COALESCE(SUM(CASE WHEN ` + orderstage.InTransit + ` THEN 1 ELSE 0 END),0)
 		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
 	err := r.db.QueryRow(q, append([]interface{}{start, end}, cargs...)...).Scan(
 		&k.Orders, &k.NetOrders, &k.Revenue, &k.PaidOrders, &k.CanceledOrders, &k.Customers,
@@ -334,7 +334,7 @@ func (r *Repository) topCustomersQuery(start, end string, f Filters, limit int, 
 	}
 	tv := trueVal(r.db)
 	fv := falseVal(r.db)
-	const transitCond = "status_stage IN ('new','processing','shipped','in_pvz')"
+	const transitCond = orderstage.InTransit
 	q := r.db.Rebind(`SELECT customer,
 		COUNT(*) AS orders,
 		COALESCE(SUM(CASE WHEN is_canceled = ` + fv + ` THEN total_amount ELSE 0 END),0) AS revenue,
