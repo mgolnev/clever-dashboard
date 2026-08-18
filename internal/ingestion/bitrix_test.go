@@ -26,8 +26,8 @@ func TestParseItems(t *testing.T) {
 
 func TestMapOrdersHTML(t *testing.T) {
 	html := `<table>
-	<tr><td>Дата создания</td><td>Номер заказа</td><td>Отменен</td><td>Сумма</td><td>Статус</td><td>Оплачен</td><td>Заказ из приложения</td><td>Позиции</td><td>Цена товара</td><td>Выберите свой населенный пункт</td></tr>
-	<tr><td>28.05.2026 18:34:24</td><td>№13019_75</td><td>Нет</td><td>1 222 руб</td><td>Выполнен</td><td>Да</td><td>Да</td><td>[100] CLEVER Носки женские Б700 белый 25 (3 шт)</td><td>149 руб</td><td>Россия, Пермский край, Пермь</td></tr>
+	<tr><td>Дата создания</td><td>Номер заказа</td><td>Отменен</td><td>Сумма</td><td>Статус</td><td>Оплачен</td><td>Оплаты</td><td>Заказ из приложения</td><td>Позиции</td><td>Цена товара</td><td>Выберите свой населенный пункт</td></tr>
+	<tr><td>28.05.2026 18:34:24</td><td>№13019_75</td><td>Нет</td><td>1 222 руб</td><td>Выполнен</td><td>Да</td><td>[1], Картой, Оплачен, 1 222 руб</td><td>Да</td><td>[100] CLEVER Носки женские Б700 белый 25 (3 шт)</td><td>149 руб</td><td>Россия, Пермский край, Пермь</td></tr>
 	</table>`
 	recs, err := ParseFile([]byte(html))
 	if err != nil {
@@ -46,6 +46,17 @@ func TestMapOrdersHTML(t *testing.T) {
 	}
 	if len(o.Items) != 1 || o.Items[0].Qty != 3 || o.Items[0].Price != 149 {
 		t.Errorf("позиции: %+v", o.Items)
+	}
+}
+
+func TestRefundAmount(t *testing.T) {
+	partial := refundAmount("Совершён частичный возврат средств", 3625,
+		"[1], Яндекс Пэй, Оплачен, 3 625 руб[2], Оплата по реквизитам (предоплата), Не оплачен, 2 494 руб")
+	if partial != 2494 {
+		t.Fatalf("частичный возврат: %d, ожидалось 2494", partial)
+	}
+	if got := refundAmount("Совершён возврат средств", 3500, ""); got != 3500 {
+		t.Fatalf("полный возврат: %d, ожидалось 3500", got)
 	}
 }
 

@@ -49,8 +49,8 @@ export default function SegmentFunnel({ segments }: Props) {
               <th className="px-2 py-2 text-right font-medium">Гросс</th>
               <th className="px-2 py-2 text-right font-medium">Оплата</th>
               <th className="px-2 py-2 text-right font-medium">Отмена</th>
-              <th className="px-2 py-2 text-right font-medium" title="Выкуп от оформленных (Выполнен / Гросс)">G2N</th>
-              <th className="px-2 py-2 text-right font-medium" title="Выкуп от оплаченных (Выполнен / Оплачено)">P2N</th>
+              <th className="px-2 py-2 text-right font-medium" title="Выкуп валово от оформленных">G2N</th>
+              <th className="px-2 py-2 text-right font-medium" title="Выкуп валово от оплаченных">P2N</th>
               <th className="px-2 py-2 text-right font-medium">Выручка</th>
             </tr>
           </thead>
@@ -90,8 +90,8 @@ export default function SegmentFunnel({ segments }: Props) {
         </table>
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Оплата = оплачено / гросс. Отмена = отменено / гросс. G2N = «Выполнен» / гросс (выкуп от оформленных).
-        P2N = «Выполнен» / оплачено (выкуп от оплаченных). Цвет: зелёный — здорово, красный — проблема.
+        Оплата = оплачено / гросс. Отмена = отменено / гросс. G2N = «Выкуплено валово» / гросс.
+        P2N = «Выкуплено валово» / оплачено. Чистый итог с возвратами показан выше. Цвет: зелёный — здорово, красный — проблема.
       </p>
     </div>
   );

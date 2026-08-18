@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/clever/clever-dashboard/internal/db"
+	"github.com/clever/clever-dashboard/internal/orderstage"
 )
 
 type Repository struct {
@@ -64,10 +65,10 @@ func boolTrue(d *db.DB) string {
 // reachCounts считает кумулятивные стадии и итоговые показатели за период.
 // orders/revenue/units — карты «ключ стадии → значение метрики».
 type reachCounts struct {
-	canceled, returns, problems int
-	orders                      map[string]int
-	revenue                     map[string]int
-	units                       map[string]int
+	canceled, returns, problems, fullyReturned, refundAmount int
+	orders                                                   map[string]int
+	revenue                                                  map[string]int
+	units                                                    map[string]int
 }
 
 // предикаты накопительных стадий (без алиаса таблицы); %[1]s — boolTrue.
@@ -76,7 +77,7 @@ const (
 	condProc     = "status_stage IN ('processing','shipped','in_pvz','completed','returned')"
 	condShip     = "status_stage IN ('shipped','in_pvz','completed','returned')"
 	condDelivers = "status_stage IN ('in_pvz','completed','returned')"
-	condComp     = "status_stage = 'completed'"
+	condComp     = orderstage.RedeemedGross
 )
 
 func (r *Repository) reach(start, end string, f Filters) (reachCounts, error) {
@@ -103,6 +104,8 @@ func (r *Repository) reach(start, end string, f Filters) (reachCounts, error) {
 		COALESCE(SUM(CASE WHEN `+condComp+` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_canceled = %[1]s THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage = 'returned' THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN `+orderstage.FullyReturned+` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN status_stage = 'returned' THEN refund_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN has_problem = %[1]s THEN 1 ELSE 0 END),0)
 		FROM orders WHERE created_at >= ? AND created_at <= ?`+cc, t))
 	var oc, op, opr, osh, od, ocm int
@@ -110,7 +113,7 @@ func (r *Repository) reach(start, end string, f Filters) (reachCounts, error) {
 	if err := r.db.QueryRow(q, append([]interface{}{start, end}, cargs...)...).Scan(
 		&oc, &op, &opr, &osh, &od, &ocm,
 		&rc, &rp, &rpr, &rsh, &rd, &rcm,
-		&c.canceled, &c.returns, &c.problems); err != nil {
+		&c.canceled, &c.returns, &c.fullyReturned, &c.refundAmount, &c.problems); err != nil {
 		return c, err
 	}
 	c.orders["created"], c.orders["paid"], c.orders["processing"] = oc, op, opr

@@ -83,20 +83,24 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
 ```
 
 `kpi`: `orders`, `netOrders`, `revenue`, `aov`, `asp`, `paidOrders`, `paidRate`,
-`canceledOrders`, `canceledRate`, `units`, `customers`, `completed`, `terminal`,
-`inTransit`, `g2n`, `redemptionRate`.
+`canceledOrders`, `canceledRate`, `units`, `customers`, `completed`,
+`redeemedGross`, `returnedOrders`, `fullyReturned`, `redeemedNet`,
+`refundAmount`, `terminal`, `inTransit`, `g2n`, `redemptionRate`.
 
 - `aov` — средний чек на заказ (revenue / netOrders).
 - `asp` — средняя цена позиции (выручка позиций / проданные единицы).
-- `g2n` — выкуплено / оформлено (completed / orders), %.
-- `redemptionRate` — выкупаемость: completed / terminal (заказы в конечном статусе), %.
+- `redeemedGross` — выкуплено валово: выполненные и затем возвращённые заказы.
+- `returnedOrders` / `refundAmount` — количество возвратов и фактически возвращённые средства.
+- `redeemedNet` — выкуплено чистыми: валовой выкуп без полностью возвращённых заказов.
+- `g2n` — чистый выкуп / оформлено (redeemedNet / orders), %.
+- `redemptionRate` — чистый выкуп / terminal (заказы в конечном статусе), %.
 - `terminal` — заказы в конечном статусе (completed/canceled/closed/returned).
 - `inTransit` — физически в доставке: `shipped` («Отправлен») или `in_pvz` («Прибыл в ПВЗ»).
 
 Выручка (`revenue`) и `units` считаются по **не отменённым** заказам.
 
 `kpi.stages` — абсолюты по стадиям воронки для карточек «Оформлено → Оплачено →
-Транзит → Выкуплено». Каждая стадия (`created`/`paid`/`inTransit`/`completed`)
+Транзит → Выкуплено валово». Каждая стадия (`created`/`paid`/`inTransit`/`redeemedGross`)
 содержит `orders`, `revenue`, `units`, а также производные `aov` (revenue/orders),
 `asp` (revenue/units), `upt` (units/orders, позиций на заказ).
 
@@ -105,14 +109,18 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
   "created":   { "orders": 1328, "revenue": 6912373, "units": 5285, "aov": 5205, "asp": 1307, "upt": 3.98 },
   "paid":      { "orders": 996,  "revenue": 5158789, "units": 4164, "aov": 5179, "asp": 1238, "upt": 4.18 },
   "inTransit": { "orders": 402,  "revenue": 2254181, "units": 1793, "aov": 5607, "asp": 1257, "upt": 4.46 },
-  "completed": { "orders": 586,  "revenue": 2822063, "units": 2270, "aov": 4815, "asp": 1243, "upt": 3.87 }
+  "redeemedGross": { "orders": 594, "revenue": 2851063, "units": 2290, "aov": 4799, "asp": 1245, "upt": 3.86 },
+  "returns": { "orders": 8, "revenue": 29000 },
+  "redeemedNet": { "orders": 590, "revenue": 2822063, "units": 2270, "aov": 4783, "asp": 1243, "upt": 3.85 }
 }
 ```
 
 - `created` (оформлено) — все заказы периода (гросс, выручка по `total_amount`).
 - `paid` (стадия «Оплачено») — заказы с `is_paid` либо со статусом `paid` и последующими стадиями; отдельный `kpi.paidOrders` остаётся строгим фактом оплаты по `is_paid`.
 - `inTransit` (транзит) — физически в доставке (`shipped`/`in_pvz`), ещё не выкуплены.
-- `completed` (выкуплено) — заказы со `status_stage='completed'`.
+- `redeemedGross` (выкуплено валово) — `completed` и `returned`: заказ был выдан клиенту.
+- `returns` — отдельный исход; `orders` — все возвраты, `revenue` — возвращённые деньги.
+- `redeemedNet` (выкуплено чистыми) — валовой выкуп без полных возвратов; `revenue` уменьшается на полные и частичные возвраты.
 - `terminal` — заказы в конечном статусе (`completed/canceled/closed/returned`); знаменатель для «в кон. статусе».
 - `paidTerminal` — оплаченные **и** в конечном статусе; знаменатель P2N «в кон. статусе».
 
@@ -121,10 +129,10 @@ UI показывает долю стадии от «Оформлено» для
 
 Коэффициенты выкупа (считаются на фронте из стадий, для суммируемых метрик):
 
-- **G2N всего** = `completed / created` — выкуплено к оформленным (с учётом транзита).
-- **G2N в кон. статусе** = `completed / terminal` — выкуплено среди дошедших до конца.
-- **P2N всего** = `completed / paid` — выкуплено к оплаченным.
-- **Возврат опл.** = `1 − completed / paidTerminal` — доля оплаченных заказов,
+- **G2N всего** = `redeemedNet / created` — чистый выкуп к оформленным (с учётом транзита).
+- **G2N в кон. статусе** = `redeemedNet / terminal` — чистый выкуп среди дошедших до конца.
+- **P2N всего** = `redeemedNet / paid` — чистый выкуп к оплаченным.
+- **Возврат опл.** = `1 − redeemedNet / paidTerminal` — доля оплаченных заказов,
   которые **не** выкуплены (отмена/возврат) среди дошедших до конечного статуса;
   рост = плохо.
 

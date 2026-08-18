@@ -61,10 +61,10 @@ func (r *Repository) saveOrders(orders []model.Order, importID int64) (itemsTota
 
 	insOrder := r.db.Rebind(`INSERT INTO orders (
 		order_number, created_at, updated_at, customer, email, phone,
-		total_amount, delivery_cost, status_raw, status_stage, is_paid, is_canceled,
+		total_amount, refund_amount, delivery_cost, status_raw, status_stage, is_paid, is_canceled,
 		payment_system, delivery_service, channel, coupon, region, city, location_raw,
 		has_problem, problem_desc, cancel_reason, items_count, import_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 
 	insItem := r.db.Rebind(`INSERT INTO order_items (
 		order_number, offer_id, name, qty, price, line_sum, brand, category, gender, size, import_id
@@ -73,7 +73,7 @@ func (r *Repository) saveOrders(orders []model.Order, importID int64) (itemsTota
 	for _, o := range orders {
 		if _, err := tx.Exec(insOrder,
 			o.OrderNumber, nullTime(o.CreatedAt), nullTime(o.UpdatedAt), o.Customer, o.Email, o.Phone,
-			o.TotalAmount, o.DeliveryCost, o.StatusRaw, o.StatusStage, o.IsPaid, o.IsCanceled,
+			o.TotalAmount, o.RefundAmount, o.DeliveryCost, o.StatusRaw, o.StatusStage, o.IsPaid, o.IsCanceled,
 			o.PaymentSystem, o.DeliveryService, o.Channel, o.Coupon, o.Region, o.City, o.LocationRaw,
 			o.HasProblem, o.ProblemDesc, o.CancelReason, len(o.Items), importID,
 		); err != nil {

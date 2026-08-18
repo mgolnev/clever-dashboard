@@ -38,6 +38,7 @@ func (d *DB) Migrate() error {
 			email TEXT,
 			phone TEXT,
 			total_amount INTEGER NOT NULL DEFAULT 0,
+			refund_amount INTEGER NOT NULL DEFAULT 0,
 			delivery_cost INTEGER NOT NULL DEFAULT 0,
 			status_raw TEXT,
 			status_stage TEXT,
@@ -115,6 +116,7 @@ func (d *DB) Migrate() error {
 		"ALTER TABLE orders ADD COLUMN problem_desc TEXT",
 		"ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
 		"ALTER TABLE orders ADD COLUMN coupon TEXT",
+		"ALTER TABLE orders ADD COLUMN refund_amount INTEGER NOT NULL DEFAULT 0",
 	} {
 		if _, err := d.Exec(alter); err != nil && !isDuplicateColumn(err) {
 			return fmt.Errorf("migrate alter: %w\nstmt: %s", err, alter)
@@ -137,6 +139,14 @@ func (d *DB) Migrate() error {
 	if _, err := d.Exec(`UPDATE orders SET status_stage = 'paid'
 		WHERE status_raw = 'Оплачен' AND is_canceled = ` + falseValue); err != nil {
 		return fmt.Errorf("migrate paid status: %w", err)
+	}
+	// Старые импорты не содержали журнал оплат, поэтому корректно восстановить
+	// можно только полные возвраты: их сумма всегда равна сумме заказа. Частичные
+	// будут рассчитаны при следующем импорте исходной выгрузки.
+	if _, err := d.Exec(`UPDATE orders SET refund_amount = total_amount
+		WHERE status_stage = 'returned' AND status_raw IN ('Возврат заказа', 'Совершён возврат средств', 'Совершен возврат средств')
+		AND refund_amount = 0`); err != nil {
+		return fmt.Errorf("migrate full refund amount: %w", err)
 	}
 	return nil
 }

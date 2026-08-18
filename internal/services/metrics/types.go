@@ -23,10 +23,15 @@ type KPI struct {
 	RepeatCustomers   int     `json:"repeatCustomers"`   // покупатели с 2+ заказами за период
 	CanceledCustomers int     `json:"canceledCustomers"` // покупатели с хотя бы одной отменой
 	Completed         int     `json:"completed"`         // выкуплено (status_stage=completed)
+	RedeemedGross     int     `json:"redeemedGross"`     // выкуплено валово (включая последующие возвраты)
+	ReturnedOrders    int     `json:"returnedOrders"`    // заказы с возвратом
+	FullyReturned     int     `json:"fullyReturned"`     // полностью возвращённые заказы
+	RedeemedNet       int     `json:"redeemedNet"`       // выкуплено чистыми (без полных возвратов)
+	RefundAmount      int     `json:"refundAmount"`      // возвращено покупателям, ₽
 	Terminal          int     `json:"terminal"`          // заказы в конечном статусе
 	InTransit         int     `json:"inTransit"`         // физически в доставке: отправлен или прибыл в ПВЗ
-	G2N               float64 `json:"g2n"`               // выкуплено / оформлено (гросс), %
-	RedemptionRate    float64 `json:"redemptionRate"`    // выкуплено / заказы в конечном статусе, %
+	G2N               float64 `json:"g2n"`               // чистый выкуп / оформлено (гросс), %
+	RedemptionRate    float64 `json:"redemptionRate"`    // чистый выкуп / заказы в конечном статусе, %
 
 	Stages KPIStages `json:"stages"` // показатели по стадиям воронки
 }
@@ -46,12 +51,15 @@ type StageKPI struct {
 // Terminal/PaidTerminal — служебные знаменатели для коэффициентов G2N/P2N
 // «в конечном статусе» (исключают заказы в транзите).
 type KPIStages struct {
-	Created      StageKPI `json:"created"`      // оформлено (гросс — все заказы периода)
-	Paid         StageKPI `json:"paid"`         // оплачено (кумулятивно: is_paid или продвинулся дальше)
-	InTransit    StageKPI `json:"inTransit"`    // физически в доставке: отправлен или прибыл в ПВЗ
-	Completed    StageKPI `json:"completed"`    // выкуплено (status_stage=completed)
-	Terminal     StageKPI `json:"terminal"`     // в конечном статусе (completed/canceled/closed/returned)
-	PaidTerminal StageKPI `json:"paidTerminal"` // оплачено и в конечном статусе
+	Created       StageKPI `json:"created"`       // оформлено (гросс — все заказы периода)
+	Paid          StageKPI `json:"paid"`          // оплачено (кумулятивно: is_paid или продвинулся дальше)
+	InTransit     StageKPI `json:"inTransit"`     // физически в доставке: отправлен или прибыл в ПВЗ
+	Completed     StageKPI `json:"completed"`     // выполнено без последующих возвратов (status_stage=completed)
+	RedeemedGross StageKPI `json:"redeemedGross"` // выкуплено валово (включая возвраты)
+	Returns       StageKPI `json:"returns"`       // возвраты: сумма фактически возвращённых средств
+	RedeemedNet   StageKPI `json:"redeemedNet"`   // чистый выкуп: валово минус возвраты
+	Terminal      StageKPI `json:"terminal"`      // в конечном статусе (completed/canceled/closed/returned)
+	PaidTerminal  StageKPI `json:"paidTerminal"`  // оплачено и в конечном статусе
 }
 
 // NamedCount — срез по справочнику (канал/оплата/доставка/регион).

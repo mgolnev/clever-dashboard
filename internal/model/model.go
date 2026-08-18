@@ -13,6 +13,7 @@ type Order struct {
 	Email           string      `json:"email"`
 	Phone           string      `json:"phone"`
 	TotalAmount     int         `json:"totalAmount"`
+	RefundAmount    int         `json:"refundAmount"`
 	DeliveryCost    int         `json:"deliveryCost"`
 	StatusRaw       string      `json:"statusRaw"`
 	StatusStage     string      `json:"statusStage"`

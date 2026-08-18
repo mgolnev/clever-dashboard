@@ -19,6 +19,9 @@ export interface KPIStages {
   paid: StageKPI;
   inTransit: StageKPI;
   completed: StageKPI;
+  redeemedGross: StageKPI;
+  returns: StageKPI;
+  redeemedNet: StageKPI;
   terminal: StageKPI;
   paidTerminal: StageKPI;
 }
@@ -38,6 +41,11 @@ export interface KPI {
   repeatCustomers: number;
   canceledCustomers: number;
   completed: number;
+  redeemedGross: number;
+  returnedOrders: number;
+  fullyReturned: number;
+  redeemedNet: number;
+  refundAmount: number;
   terminal: number;
   inTransit: number;
   g2n: number;
@@ -179,6 +187,11 @@ export interface FunnelReport {
   gross: number;
   canceled: number;
   returns: number;
+  fullyReturned: number;
+  refundAmount: number;
+  redeemedGross: number;
+  redeemedNet: number;
+  redeemedNetRevenue: number;
   problems: number;
   canceledNoReason: number;
   segments: SegmentGroup[];

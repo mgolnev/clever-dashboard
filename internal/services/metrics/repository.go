@@ -115,11 +115,16 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		COUNT(DISTINCT customer),
 		COALESCE(SUM(CASE WHEN status_stage = 'completed' THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN status_stage IN ('completed','canceled','closed','returned') THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN ` + orderstage.InTransit + ` THEN 1 ELSE 0 END),0)
+		COALESCE(SUM(CASE WHEN ` + orderstage.InTransit + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.RedeemedGross + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.Returned + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.FullyReturned + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.Returned + ` THEN refund_amount ELSE 0 END),0)
 		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
 	err := r.db.QueryRow(q, append([]interface{}{start, end}, cargs...)...).Scan(
 		&k.Orders, &k.NetOrders, &k.Revenue, &k.PaidOrders, &k.CanceledOrders, &k.Customers,
-		&k.Completed, &k.Terminal, &k.InTransit)
+		&k.Completed, &k.Terminal, &k.InTransit, &k.RedeemedGross, &k.ReturnedOrders,
+		&k.FullyReturned, &k.RefundAmount)
 	if err != nil {
 		return k, err
 	}
@@ -141,10 +146,11 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	if k.Orders > 0 {
 		k.PaidRate = round2(float64(k.PaidOrders) / float64(k.Orders) * 100)
 		k.CanceledRate = round2(float64(k.CanceledOrders) / float64(k.Orders) * 100)
-		k.G2N = round2(float64(k.Completed) / float64(k.Orders) * 100)
+		k.RedeemedNet = k.RedeemedGross - k.FullyReturned
+		k.G2N = round2(float64(k.RedeemedNet) / float64(k.Orders) * 100)
 	}
 	if k.Terminal > 0 {
-		k.RedemptionRate = round2(float64(k.Completed) / float64(k.Terminal) * 100)
+		k.RedemptionRate = round2(float64(k.RedeemedNet) / float64(k.Terminal) * 100)
 	}
 
 	// Выручка по стадиям (оформлено / оплачено / транзит / выкуплено) и
@@ -155,14 +161,16 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 	tv := trueVal(r.db)
 	condPaid := orderstage.PaidReachSQL(tv)
 	condPaidJoin := orderstage.PaidReachSQL(tv, "o.")
-	var grossRev, paidRev, transitRev, compRev, termRev, paidTermRev int
+	var grossRev, paidRev, transitRev, compRev, redeemedGrossRev, refundAmount, termRev, paidTermRev int
 	var paidReachOrders, paidTermOrders int
-	var grossCust, paidCust, transitCust, compCust, termCust, paidTermCust int
+	var grossCust, paidCust, transitCust, compCust, redeemedGrossCust, returnedCust, redeemedNetCust, termCust, paidTermCust int
 	rq := r.db.Rebind(`SELECT
 		COALESCE(SUM(total_amount),0),
 		COALESCE(SUM(CASE WHEN ` + condPaid + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + transitCond + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + orderstage.Completed + ` THEN total_amount ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.RedeemedGross + ` THEN total_amount ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + orderstage.Returned + ` THEN refund_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + termCond + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN ` + condPaid + ` THEN 1 ELSE 0 END),0),
@@ -171,12 +179,15 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		COUNT(DISTINCT CASE WHEN ` + condPaid + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN ` + transitCond + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN ` + orderstage.Completed + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + orderstage.RedeemedGross + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + orderstage.Returned + ` AND ` + custFilter + ` THEN customer END),
+		COUNT(DISTINCT CASE WHEN ` + orderstage.RedeemedGross + ` AND NOT (` + orderstage.FullyReturned + `) AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN ` + termCond + ` AND ` + custFilter + ` THEN customer END),
 		COUNT(DISTINCT CASE WHEN is_paid = ` + tv + ` AND ` + termCond + ` AND ` + custFilter + ` THEN customer END)
 		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
 	if err := r.db.QueryRow(rq, append([]interface{}{start, end}, cargs...)...).Scan(
-		&grossRev, &paidRev, &transitRev, &compRev, &termRev, &paidTermRev, &paidReachOrders, &paidTermOrders,
-		&grossCust, &paidCust, &transitCust, &compCust, &termCust, &paidTermCust); err != nil {
+		&grossRev, &paidRev, &transitRev, &compRev, &redeemedGrossRev, &refundAmount, &termRev, &paidTermRev, &paidReachOrders, &paidTermOrders,
+		&grossCust, &paidCust, &transitCust, &compCust, &redeemedGrossCust, &returnedCust, &redeemedNetCust, &termCust, &paidTermCust); err != nil {
 		return k, err
 	}
 
@@ -195,27 +206,32 @@ func (r *Repository) kpi(start, end string, f Filters) (KPI, error) {
 		return k, err
 	}
 	// Единицы товара по стадиям.
-	var grossUnits, paidUnits, transitUnits, compUnits, termUnits, paidTermUnits int
+	var grossUnits, paidUnits, transitUnits, compUnits, redeemedGrossUnits, redeemedNetUnits, termUnits, paidTermUnits int
 	suq := r.db.Rebind(`SELECT
 		COALESCE(SUM(oi.qty),0),
 		COALESCE(SUM(CASE WHEN ` + condPaidJoin + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.` + transitCond + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.` + orderstage.Completed + ` THEN oi.qty ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN o.` + orderstage.RedeemedGross + ` THEN oi.qty ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN o.` + orderstage.RedeemedGross + ` AND NOT (o.` + orderstage.FullyReturned + `) THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.` + termCond + ` THEN oi.qty ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN o.is_paid = ` + tv + ` AND o.` + termCond + ` THEN oi.qty ELSE 0 END),0)
 		FROM order_items oi JOIN orders o ON o.order_number = oi.order_number
 		WHERE o.created_at >= ? AND o.created_at <= ?` + oc)
 	if err := r.db.QueryRow(suq, append([]interface{}{start, end}, ocargs...)...).Scan(
-		&grossUnits, &paidUnits, &transitUnits, &compUnits, &termUnits, &paidTermUnits); err != nil {
+		&grossUnits, &paidUnits, &transitUnits, &compUnits, &redeemedGrossUnits, &redeemedNetUnits, &termUnits, &paidTermUnits); err != nil {
 		return k, err
 	}
 	k.Stages = KPIStages{
-		Created:      makeStage(k.Orders, grossRev, grossUnits, grossCust),
-		Paid:         makeStage(paidReachOrders, paidRev, paidUnits, paidCust),
-		InTransit:    makeStage(k.InTransit, transitRev, transitUnits, transitCust),
-		Completed:    makeStage(k.Completed, compRev, compUnits, compCust),
-		Terminal:     makeStage(k.Terminal, termRev, termUnits, termCust),
-		PaidTerminal: makeStage(paidTermOrders, paidTermRev, paidTermUnits, paidTermCust),
+		Created:       makeStage(k.Orders, grossRev, grossUnits, grossCust),
+		Paid:          makeStage(paidReachOrders, paidRev, paidUnits, paidCust),
+		InTransit:     makeStage(k.InTransit, transitRev, transitUnits, transitCust),
+		Completed:     makeStage(k.Completed, compRev, compUnits, compCust),
+		RedeemedGross: makeStage(k.RedeemedGross, redeemedGrossRev, redeemedGrossUnits, redeemedGrossCust),
+		Returns:       makeStage(k.ReturnedOrders, refundAmount, 0, returnedCust),
+		RedeemedNet:   makeStage(k.RedeemedNet, redeemedGrossRev-refundAmount, redeemedNetUnits, redeemedNetCust),
+		Terminal:      makeStage(k.Terminal, termRev, termUnits, termCust),
+		PaidTerminal:  makeStage(paidTermOrders, paidTermRev, paidTermUnits, paidTermCust),
 	}
 	return k, nil
 }

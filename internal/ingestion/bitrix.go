@@ -18,6 +18,7 @@ const (
 	hTotal     = "Сумма"
 	hStatus    = "Статус"
 	hPaid      = "Оплачен"
+	hPayments  = "Оплаты"
 	hPayment   = "Платежная система"
 	hDelivery  = "Служба доставки"
 	hLocation  = "Выберите свой населенный пункт"
@@ -56,6 +57,7 @@ func MapOrders(records []Record) []model.Order {
 			Email:           rec.get(hEmail),
 			Phone:           rec.get(hPhone),
 			TotalAmount:     normalize.Money(rec.get(hTotal)),
+			RefundAmount:    refundAmount(statusRaw, normalize.Money(rec.get(hTotal)), rec.get(hPayments)),
 			DeliveryCost:    normalize.Money(rec.get(hDeliveryC)),
 			StatusRaw:       statusRaw,
 			StatusStage:     normalize.StatusStage(statusRaw, canceled),
@@ -76,6 +78,30 @@ func MapOrders(records []Record) []model.Order {
 		orders = append(orders, o)
 	}
 	return orders
+}
+
+var paymentAmountRe = regexp.MustCompile(`\d[\d\s\x{00a0}]*\s*руб`)
+
+// refundAmount возвращает сумму, возвращённую покупателю. В выгрузке Битрикса
+// полный возврат обозначается самим статусом, а частичный — последней записью
+// суммы в журнале «Оплаты» (первая запись — исходная успешная оплата).
+func refundAmount(status string, total int, payments string) int {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if total <= 0 || !strings.Contains(status, "возврат") {
+		return 0
+	}
+	if !strings.Contains(status, "частич") {
+		return total
+	}
+	amounts := paymentAmountRe.FindAllString(payments, -1)
+	if len(amounts) < 2 {
+		return 0
+	}
+	refund := normalize.Money(amounts[len(amounts)-1])
+	if refund > total {
+		return total
+	}
+	return refund
 }
 
 // parseItems собирает позиции из столбца «Позиции» и сопоставляет цены из

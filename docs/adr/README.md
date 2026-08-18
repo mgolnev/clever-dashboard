@@ -7,6 +7,7 @@
 | [0001](0001-mvp-stack-and-architecture.md) | Стек, коннекторное ядро и модель данных MVP-дашборда | Принято |
 | [0002](0002-order-funnel-service.md) | Сервис воронки пути заказа, ASP, поля проблем/причин | Принято |
 | [0003](0003-period-comparison-mode.md) | Режим сравнения периодов (compareStart/compareEnd, глобальный тумблер, overlay) | Принято |
+| [0004](0004-gross-and-net-redemption.md) | Валовой и чистый выкуп | Принято |
 
 ## Когда заводить ADR
 

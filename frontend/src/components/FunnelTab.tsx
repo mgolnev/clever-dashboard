@@ -1,5 +1,5 @@
 import type { FunnelReport, SegmentRow } from "../types";
-import { num, pct } from "../utils/format";
+import { num, pct, rub } from "../utils/format";
 import FunnelChart from "./FunnelChart";
 import SegmentFunnel from "./SegmentFunnel";
 import ProblemsPanel from "./ProblemsPanel";
@@ -45,6 +45,24 @@ export default function FunnelTab({ report, showCompare = true }: Props) {
       </div>
 
       <FunnelChart stages={report.stages} prevStages={report.prevStages} showCompare={showCompare} />
+      <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Итог выкупа</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div>
+            <div className="text-xs text-slate-500">Выкуплено валово</div>
+            <div className="mt-1 text-lg font-semibold text-ink">{num(report.redeemedGross)} зак.</div>
+          </div>
+          <div>
+            <div className="text-xs text-rose-600">Возвраты</div>
+            <div className="mt-1 text-lg font-semibold text-rose-700">{num(report.returns)} зак. · {rub(report.refundAmount)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-emerald-700">Выкуплено чистыми</div>
+            <div className="mt-1 text-lg font-semibold text-emerald-700">{num(report.redeemedNet)} зак. · {rub(report.redeemedNetRevenue)}</div>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-400">Частичный возврат уменьшает только сумму; из количества исключаются лишь полностью возвращённые заказы.</p>
+      </div>
       <SegmentFunnel segments={report.segments} />
       <ProblemsPanel report={report} />
     </div>

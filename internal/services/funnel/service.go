@@ -123,18 +123,23 @@ func (s *Service) Report(start, end, compareStart, compareEnd string, f Filters)
 	}
 
 	return &Funnel{
-		Period:           Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
-		Previous:         Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: prevDays},
-		Stages:           stages,
-		PrevStages:       prevStages,
-		Gross:            c.orders["created"],
-		Canceled:         c.canceled,
-		Returns:          c.returns,
-		Problems:         c.problems,
-		CanceledNoReason: c.canceled - reasonsFilled,
-		Segments:         segs,
-		TopProblems:      topProblems,
-		TopCancelReasons: topReasons,
+		Period:             Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
+		Previous:           Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: prevDays},
+		Stages:             stages,
+		PrevStages:         prevStages,
+		Gross:              c.orders["created"],
+		Canceled:           c.canceled,
+		Returns:            c.returns,
+		FullyReturned:      c.fullyReturned,
+		RefundAmount:       c.refundAmount,
+		RedeemedGross:      c.orders["completed"],
+		RedeemedNet:        c.orders["completed"] - c.fullyReturned,
+		RedeemedNetRevenue: c.revenue["completed"] - c.refundAmount,
+		Problems:           c.problems,
+		CanceledNoReason:   c.canceled - reasonsFilled,
+		Segments:           segs,
+		TopProblems:        topProblems,
+		TopCancelReasons:   topReasons,
 	}, nil
 }
 

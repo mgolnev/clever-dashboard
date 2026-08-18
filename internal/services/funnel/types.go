@@ -47,18 +47,23 @@ type LabeledCount struct {
 
 // Funnel — полный отчёт воронки за период.
 type Funnel struct {
-	Period           Range          `json:"period"`
-	Stages           []Stage        `json:"stages"`
-	Gross            int            `json:"gross"`
-	Canceled         int            `json:"canceled"`
-	Returns          int            `json:"returns"`
-	Problems         int            `json:"problems"`
-	CanceledNoReason int            `json:"canceledNoReason"`
-	Segments         []SegmentGroup `json:"segments"`
-	TopProblems      []LabeledCount `json:"topProblems"`
-	TopCancelReasons []LabeledCount `json:"topCancelReasons"`
-	Previous         Range          `json:"previous"`
-	PrevStages       []Stage        `json:"prevStages"`
+	Period             Range          `json:"period"`
+	Stages             []Stage        `json:"stages"`
+	Gross              int            `json:"gross"`
+	Canceled           int            `json:"canceled"`
+	Returns            int            `json:"returns"`
+	FullyReturned      int            `json:"fullyReturned"`
+	RefundAmount       int            `json:"refundAmount"`
+	RedeemedGross      int            `json:"redeemedGross"`
+	RedeemedNet        int            `json:"redeemedNet"`
+	RedeemedNetRevenue int            `json:"redeemedNetRevenue"`
+	Problems           int            `json:"problems"`
+	CanceledNoReason   int            `json:"canceledNoReason"`
+	Segments           []SegmentGroup `json:"segments"`
+	TopProblems        []LabeledCount `json:"topProblems"`
+	TopCancelReasons   []LabeledCount `json:"topCancelReasons"`
+	Previous           Range          `json:"previous"`
+	PrevStages         []Stage        `json:"prevStages"`
 }
 
 // стадии воронки и их подписи.
@@ -68,5 +73,5 @@ var stageDefs = []struct{ key, label, predicate string }{
 	{"processing", "В сборке/обработке", "processing"},
 	{"shipped", "Отправлен", "shipped"},
 	{"delivered", "Доставлен в ПВЗ", "delivered"},
-	{"completed", "Выполнен (выкуп)", "completed"},
+	{"completed", "Выкуплено (валово)", "completed"},
 }

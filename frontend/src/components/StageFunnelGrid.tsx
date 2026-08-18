@@ -8,7 +8,7 @@ const STAGES: { key: StageKey; label: string }[] = [
   { key: "created", label: "Оформлено" },
   { key: "paid", label: "Оплачено" },
   { key: "inTransit", label: "Транзит" },
-  { key: "completed", label: "Выкуплено" },
+  { key: "redeemedGross", label: "Выкуплено валово" },
 ];
 
 export interface StageMetricDef {
@@ -18,6 +18,7 @@ export interface StageMetricDef {
   pick: (s: StageKPI) => number;
   fmt: (s: StageKPI) => string;
   fmtAbs?: (n: number) => string;
+  redemptionOutcome?: boolean;
 }
 
 export interface RatioDef {
@@ -103,6 +104,31 @@ export default function StageFunnelGrid({
                 );
               })}
             </div>
+            {m.redemptionOutcome && (
+              <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
+                {[
+                  { label: "Возвраты", stage: currentStages.returns, prevStage: prevStages.returns, invert: true },
+                  { label: "Выкуплено чистыми", stage: currentStages.redeemedNet, prevStage: prevStages.redeemedNet },
+                ].map((outcome) => (
+                  <div key={outcome.label} className="flex items-center justify-between gap-2">
+                    <span className={outcome.invert ? "w-[124px] shrink-0 text-xs font-medium text-rose-600" : "w-[124px] shrink-0 text-xs font-semibold text-emerald-700"}>
+                      {outcome.label}
+                    </span>
+                    <span className="flex-1 text-right text-sm font-semibold text-ink">{m.fmt(outcome.stage)}</span>
+                    {showCompare && (
+                      <>
+                        <span className="w-[84px] shrink-0 text-right">
+                          <DeltaBadge d={delta(m.pick(outcome.stage), m.pick(outcome.prevStage))} invert={outcome.invert} mode="pct" />
+                        </span>
+                        <span className="w-[120px] shrink-0 text-right">
+                          <DeltaBadge d={delta(m.pick(outcome.stage), m.pick(outcome.prevStage))} invert={outcome.invert} mode="abs" fmtAbs={m.fmtAbs} />
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {m.additive && ratios.length > 0 && (
               <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
                 {ratios.map((rt) => {
@@ -152,13 +178,13 @@ export default function StageFunnelGrid({
 }
 
 export const DEFAULT_RATIOS: RatioDef[] = [
-  { label: "G2N всего", hint: "выкуп / оформлено", num: "completed", den: "created" },
-  { label: "G2N в кон.", hint: "выкуп / в конечном статусе", num: "completed", den: "terminal" },
-  { label: "P2N всего", hint: "выкуп / оплачено", num: "completed", den: "paid" },
+  { label: "G2N всего", hint: "чистый выкуп / оформлено", num: "redeemedNet", den: "created" },
+  { label: "G2N в кон.", hint: "чистый выкуп / в конечном статусе", num: "redeemedNet", den: "terminal" },
+  { label: "P2N всего", hint: "чистый выкуп / оплачено", num: "redeemedNet", den: "paid" },
   {
     label: "Возврат опл.",
     hint: "оплачены, но не выкуплены (отмена/возврат) среди дошедших до конца",
-    num: "completed",
+    num: "redeemedNet",
     den: "paidTerminal",
     complement: true,
     invert: true,
