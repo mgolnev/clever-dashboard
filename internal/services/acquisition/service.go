@@ -89,11 +89,13 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 	for day := st; !day.After(en); day = day.AddDate(0, 0, 1) {
 		key := day.Format(dateLayout)
 		daily = append(daily, DailyPoint{
-			Day:          key,
-			SiteSessions: days[key]["site"].Sessions,
-			AppSessions:  days[key]["app"].Sessions,
-			SiteOrders:   days[key]["site"].Orders,
-			AppOrders:    days[key]["app"].Orders,
+			Day:            key,
+			SiteSessions:   days[key]["site"].Sessions,
+			AppSessions:    days[key]["app"].Sessions,
+			SiteOrders:     days[key]["site"].Orders,
+			AppOrders:      days[key]["app"].Orders,
+			SitePaidOrders: days[key]["site"].PaidOrders,
+			AppPaidOrders:  days[key]["app"].PaidOrders,
 		})
 	}
 	return PeriodData{Channels: channels, Daily: daily, HasTraffic: all.Sessions > 0, Sampled: all.Sampled}, nil

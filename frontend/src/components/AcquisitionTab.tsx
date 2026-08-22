@@ -5,7 +5,7 @@ import type {
   AnalyticsSourceStatus,
   AnalyticsStatus,
 } from "../types";
-import { delta, num, numAbs, pct, ppAbs } from "../utils/format";
+import { delta, num, pct } from "../utils/format";
 import DeltaBadge from "./DeltaBadge";
 
 interface Props {
@@ -58,27 +58,23 @@ function Metric({
   value,
   current,
   previous,
-  percentPoints,
   showCompare,
+  prominent,
 }: {
   label: string;
   value: string;
   current: number;
   previous: number;
-  percentPoints?: boolean;
   showCompare?: boolean;
+  prominent?: boolean;
 }) {
   return (
     <div>
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="text-xl font-semibold tabular-nums text-ink">{value}</span>
+        <span className={`${prominent ? "text-3xl" : "text-xl"} font-semibold tabular-nums text-ink`}>{value}</span>
         {showCompare && (
-          <DeltaBadge
-            d={delta(current, previous)}
-            fmtAbs={percentPoints ? ppAbs : numAbs}
-            mode={percentPoints ? "abs" : "both"}
-          />
+          <DeltaBadge d={delta(current, previous)} mode="pct" />
         )}
       </div>
     </div>
@@ -100,43 +96,148 @@ function ChannelCard({
   return (
     <section className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <span className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
-      <div className="mb-4 flex items-baseline justify-between gap-3">
+      <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-base font-semibold text-ink">{current.label}</h3>
-        <span className="text-xs text-slate-400">CR = заказы / {denominator}</span>
+        <span className="text-xs text-slate-400">{denominator}</span>
       </div>
-      <div className="grid grid-cols-2 gap-x-5 gap-y-5">
-        <Metric label="Трафик" value={num(current.sessions)} current={current.sessions} previous={prev.sessions} showCompare={showCompare} />
-        <Metric label="Заказы" value={num(current.orders)} current={current.orders} previous={prev.orders} showCompare={showCompare} />
-        <Metric label="CR в заказ" value={current.sessions > 0 ? pct(current.orderCr) : "—"} current={current.orderCr} previous={prev.orderCr} percentPoints showCompare={showCompare && current.sessions > 0} />
-        <Metric label="CR в оплату" value={current.sessions > 0 ? pct(current.paidCr) : "—"} current={current.paidCr} previous={prev.paidCr} percentPoints showCompare={showCompare && current.sessions > 0} />
-        <Metric label="Действующие" value={num(current.netOrders)} current={current.netOrders} previous={prev.netOrders} showCompare={showCompare} />
-        <Metric label="CR действующих" value={current.sessions > 0 ? pct(current.netCr) : "—"} current={current.netCr} previous={prev.netCr} percentPoints showCompare={showCompare && current.sessions > 0} />
+      <div className="mt-5">
+        <Metric label="Трафик" value={num(current.sessions)} current={current.sessions} previous={prev.sessions} showCompare={showCompare} prominent />
+      </div>
+      <div className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
+        <div className="grid grid-cols-2 gap-5 py-4">
+          <Metric label="Заказы" value={num(current.orders)} current={current.orders} previous={prev.orders} showCompare={showCompare} />
+          <Metric label="CR в заказ" value={current.sessions > 0 ? pct(current.orderCr) : "—"} current={current.orderCr} previous={prev.orderCr} showCompare={showCompare && current.sessions > 0} />
+        </div>
+        <div className="grid grid-cols-2 gap-5 pt-4">
+          <Metric label="Оплачено" value={num(current.paidOrders)} current={current.paidOrders} previous={prev.paidOrders} showCompare={showCompare} />
+          <Metric label="CR в оплату" value={current.sessions > 0 ? pct(current.paidCr) : "—"} current={current.paidCr} previous={prev.paidCr} showCompare={showCompare && current.sessions > 0} />
+        </div>
       </div>
     </section>
   );
 }
 
-function DailyChart({ points }: { points: AcquisitionDay[] }) {
-  const maxTraffic = Math.max(1, ...points.flatMap((p) => [p.siteSessions, p.appSessions]));
-  if (!points.some((p) => p.siteSessions || p.appSessions || p.siteOrders || p.appOrders)) {
-    return <p className="text-sm text-slate-400">За выбранный период дневных данных пока нет.</p>;
+type DynamicsChannel = AcquisitionChannel["channel"];
+
+interface DynamicsPoint {
+  day: string;
+  traffic: number;
+  orderCr: number;
+  paidCr: number;
+  orders: number;
+  paidOrders: number;
+}
+
+const DYNAMICS_CHANNELS: Array<{ channel: DynamicsChannel; label: string; accent: string }> = [
+  { channel: "all", label: "Итого", accent: "#4f46e5" },
+  { channel: "site", label: "Сайт", accent: "#0ea5e9" },
+  { channel: "app", label: "Приложение", accent: "#8b5cf6" },
+];
+
+function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel): DynamicsPoint {
+  const site = channel === "site" || channel === "all";
+  const app = channel === "app" || channel === "all";
+  const traffic = (site ? point.siteSessions : 0) + (app ? point.appSessions : 0);
+  const orders = (site ? point.siteOrders : 0) + (app ? point.appOrders : 0);
+  const paidOrders = (site ? point.sitePaidOrders : 0) + (app ? point.appPaidOrders : 0);
+  return {
+    day: point.day,
+    traffic,
+    orders,
+    paidOrders,
+    orderCr: traffic > 0 ? (orders / traffic) * 100 : 0,
+    paidCr: traffic > 0 ? (paidOrders / traffic) * 100 : 0,
+  };
+}
+
+function dayLabel(day: string): string {
+  return new Date(`${day}T00:00:00`).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+}
+
+function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; channel: DynamicsChannel; accent: string }) {
+  const values = points.map((point) => dynamicsPoint(point, channel));
+  const maxTraffic = Math.max(1, ...values.map((point) => point.traffic));
+  const maxCr = Math.max(0.1, ...values.flatMap((point) => [point.orderCr, point.paidCr])) * 1.15;
+  if (!values.some((point) => point.traffic)) {
+    return <p className="py-8 text-sm text-slate-400">Трафик за выбранный период пока не загружен — конверсию нельзя рассчитать.</p>;
   }
-  const minWidth = Math.max(640, points.length * 44);
+
+  const width = Math.max(1000, values.length * 80);
+  const height = 280;
+  const left = 56;
+  const right = 54;
+  const top = 18;
+  const bottom = 42;
+  const chartHeight = height - top - bottom;
+  const chartWidth = width - left - right;
+  const step = chartWidth / values.length;
+  const barWidth = Math.min(42, step * 0.48);
+  const x = (index: number) => left + step * (index + 0.5);
+  const trafficY = (value: number) => top + chartHeight - (value / maxTraffic) * chartHeight;
+  const crY = (value: number) => top + chartHeight - (value / maxCr) * chartHeight;
+  const orderLine = values.map((point, index) => `${x(index)},${crY(point.orderCr)}`).join(" ");
+  const paidLine = values.map((point, index) => `${x(index)},${crY(point.paidCr)}`).join(" ");
+
   return (
     <div className="overflow-x-auto pb-1">
-      <div className="flex h-64 items-end gap-2" style={{ minWidth }}>
-        {points.map((p) => (
-          <div key={p.day} className="group flex h-full min-w-0 flex-1 flex-col justify-end" title={`${p.day}: сайт ${p.siteSessions} виз. / ${p.siteOrders} зак.; приложение ${p.appSessions} сесс. / ${p.appOrders} зак.`}>
-            <div className="mb-1 text-center text-[10px] tabular-nums text-slate-500">{p.siteOrders + p.appOrders} зак.</div>
-            <div className="flex h-[82%] items-end justify-center gap-0.5">
-              <div className="w-1/2 rounded-t bg-sky-400 transition group-hover:bg-sky-500" style={{ height: `${Math.max(p.siteSessions ? 3 : 0, (p.siteSessions / maxTraffic) * 100)}%` }} />
-              <div className="w-1/2 rounded-t bg-violet-400 transition group-hover:bg-violet-500" style={{ height: `${Math.max(p.appSessions ? 3 : 0, (p.appSessions / maxTraffic) * 100)}%` }} />
-            </div>
-            <div className="mt-1 truncate text-center text-[9px] text-slate-400">{p.day.slice(5)}</div>
-          </div>
-        ))}
+      <div style={{ minWidth: width }}>
+        <svg className="h-[280px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Дневная динамика трафика и конверсии">
+          {[0, 0.5, 1].map((tick) => {
+            const y = top + chartHeight * (1 - tick);
+            return (
+              <g key={tick}>
+                <line x1={left} x2={width - right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="3 5" />
+                <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{num(Math.round(maxTraffic * tick))}</text>
+                <text x={width - right + 8} y={y + 4} fontSize="10" fill="#94a3b8">{pct(maxCr * tick)}</text>
+              </g>
+            );
+          })}
+
+          {values.map((point, index) => {
+            const y = trafficY(point.traffic);
+            return (
+              <g key={point.day}>
+                <rect x={x(index) - barWidth / 2} y={y} width={barWidth} height={top + chartHeight - y} rx="5" fill={accent} opacity="0.22">
+                  <title>{`${dayLabel(point.day)}: трафик ${num(point.traffic)}`}</title>
+                </rect>
+                <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="10" fill="#94a3b8">{dayLabel(point.day)}</text>
+              </g>
+            );
+          })}
+
+          <polyline points={orderLine} fill="none" stroke="#334155" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={paidLine} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+
+          {values.map((point, index) => (
+            <g key={`${point.day}-conversion`}>
+              <circle cx={x(index)} cy={crY(point.orderCr)} r="4" fill="#334155" stroke="white" strokeWidth="2">
+                <title>{`${dayLabel(point.day)}: заказов ${num(point.orders)}, CR ${pct(point.orderCr)}`}</title>
+              </circle>
+              <circle cx={x(index)} cy={crY(point.paidCr)} r="4" fill="#10b981" stroke="white" strokeWidth="2">
+                <title>{`${dayLabel(point.day)}: оплачено ${num(point.paidOrders)}, CR ${pct(point.paidCr)}`}</title>
+              </circle>
+            </g>
+          ))}
+        </svg>
       </div>
     </div>
+  );
+}
+
+function DynamicsSection({ points, channel, label, accent }: { points: AcquisitionDay[]; channel: DynamicsChannel; label: string; accent: string }) {
+  return (
+    <section className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-semibold text-ink">{label}</h3>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: accent, opacity: 0.3 }} />Трафик</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 bg-slate-700" />CR оформленных</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 bg-emerald-500" />CR оплаченных</span>
+        </div>
+      </div>
+      <DailyChart points={points} channel={channel} accent={accent} />
+    </section>
   );
 }
 
@@ -172,15 +273,15 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
         ))}
       </div>
 
-      <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="font-semibold text-ink">Динамика трафика по дням</h2>
-            <p className="text-xs text-slate-500">Сайт — голубой, приложение — фиолетовый; над столбцом — все заказы дня.</p>
-          </div>
-        </div>
-        <DailyChart points={report.current.daily} />
-      </section>
+      <div className="pt-2">
+        <h2 className="font-semibold text-ink">Динамика трафика и конверсии</h2>
+        <p className="mt-0.5 text-xs text-slate-500">Столбцы — трафик, линии — конверсия в оформленный и оплаченный заказ. Левая шкала — трафик, правая — CR.</p>
+      </div>
+      <div className="space-y-4">
+        {DYNAMICS_CHANNELS.map((item) => (
+          <DynamicsSection key={item.channel} points={report.current.daily} {...item} />
+        ))}
+      </div>
     </div>
   );
 }

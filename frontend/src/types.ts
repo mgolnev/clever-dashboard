@@ -163,6 +163,8 @@ export interface AcquisitionDay {
   appSessions: number;
   siteOrders: number;
   appOrders: number;
+  sitePaidOrders: number;
+  appPaidOrders: number;
 }
 
 export interface AcquisitionPeriod {

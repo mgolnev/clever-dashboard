@@ -22,8 +22,9 @@ type channelTotals struct {
 }
 
 type dailyValues struct {
-	Sessions int
-	Orders   int
+	Sessions   int
+	Orders     int
+	PaidOrders int
 }
 
 func (r *Repository) dataBounds() (string, string, error) {
@@ -127,10 +128,13 @@ func (r *Repository) dailyTraffic(start, end string) (map[string]map[string]dail
 
 func (r *Repository) dailyOrders(start, end string, days map[string]map[string]dailyValues) error {
 	dateExpr := "SUBSTR(created_at,1,10)"
+	tv := "1"
 	if r.db.IsPostgres() {
 		dateExpr = "TO_CHAR(created_at, 'YYYY-MM-DD')"
+		tv = "TRUE"
 	}
-	q := r.db.Rebind(`SELECT ` + dateExpr + ` AS day, COALESCE(channel,''), COUNT(*)
+	q := r.db.Rebind(`SELECT ` + dateExpr + ` AS day, COALESCE(channel,''), COUNT(*),
+		COALESCE(SUM(CASE WHEN is_paid = ` + tv + ` THEN 1 ELSE 0 END),0)
 		FROM orders WHERE created_at >= ? AND created_at <= ? GROUP BY ` + dateExpr + `, channel`)
 	rows, err := r.db.Query(q, start+" 00:00:00", end+" 23:59:59")
 	if err != nil {
@@ -139,8 +143,8 @@ func (r *Repository) dailyOrders(start, end string, days map[string]map[string]d
 	defer rows.Close()
 	for rows.Next() {
 		var day, raw string
-		var orders int
-		if err := rows.Scan(&day, &raw, &orders); err != nil {
+		var orders, paidOrders int
+		if err := rows.Scan(&day, &raw, &orders, &paidOrders); err != nil {
 			return err
 		}
 		channel := normalizeOrderChannel(raw)
@@ -152,6 +156,7 @@ func (r *Repository) dailyOrders(start, end string, days map[string]map[string]d
 		}
 		v := days[day][channel]
 		v.Orders += orders
+		v.PaidOrders += paidOrders
 		days[day][channel] = v
 	}
 	return rows.Err()

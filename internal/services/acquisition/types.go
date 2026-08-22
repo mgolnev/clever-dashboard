@@ -19,11 +19,13 @@ type ChannelMetrics struct {
 }
 
 type DailyPoint struct {
-	Day          string `json:"day"`
-	SiteSessions int    `json:"siteSessions"`
-	AppSessions  int    `json:"appSessions"`
-	SiteOrders   int    `json:"siteOrders"`
-	AppOrders    int    `json:"appOrders"`
+	Day            string `json:"day"`
+	SiteSessions   int    `json:"siteSessions"`
+	AppSessions    int    `json:"appSessions"`
+	SiteOrders     int    `json:"siteOrders"`
+	AppOrders      int    `json:"appOrders"`
+	SitePaidOrders int    `json:"sitePaidOrders"`
+	AppPaidOrders  int    `json:"appPaidOrders"`
 }
 
 type PeriodData struct {

@@ -66,7 +66,8 @@ func TestReportAggregatesTrafficAndOrders(t *testing.T) {
 	if site.Sessions != 300 || site.Orders != 2 || site.NetOrders != 1 {
 		t.Fatalf("unexpected site totals: %+v", site)
 	}
-	if report.Current.Daily[1].AppOrders != 1 || report.Current.Daily[1].SiteSessions != 200 {
+	if report.Current.Daily[1].AppOrders != 1 || report.Current.Daily[1].AppPaidOrders != 1 ||
+		report.Current.Daily[1].SitePaidOrders != 0 || report.Current.Daily[1].SiteSessions != 200 {
 		t.Fatalf("unexpected daily point: %+v", report.Current.Daily[1])
 	}
 }
