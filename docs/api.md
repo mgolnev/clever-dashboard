@@ -253,6 +253,59 @@ AND. Фильтруют все стадии, разрезы и топы.
 `paidRate`/`cancelRate`/`completedRate` в разрезах считаются от гросс данного
 сегмента.
 
+## `GET /api/acquisition?start=YYYY-MM-DD&end=YYYY-MM-DD&compareStart=YYYY-MM-DD&compareEnd=YYYY-MM-DD`
+
+Сохранённый верх воронки: визиты сайта, сессии приложения и конверсия в заказы
+Битрикса. Период сравнения работает так же, как в `/api/metrics`. Бизнес-фильтры
+не принимаются: внешний агрегированный трафик нельзя корректно фильтровать по
+полям заказа.
+
+```jsonc
+{
+  "period": { "start": "2026-08-10", "end": "2026-08-16", "days": 7 },
+  "previous": { "start": "2026-08-03", "end": "2026-08-09", "days": 7 },
+  "current": {
+    "hasTraffic": true,
+    "sampled": false,
+    "channels": [
+      {
+        "channel": "site", "label": "Сайт", "sessions": 12000,
+        "orders": 128, "paidOrders": 96, "netOrders": 110,
+        "orderCr": 1.07, "paidCr": 0.8, "netCr": 0.92
+      }
+    ],
+    "daily": [
+      { "day": "2026-08-10", "siteSessions": 1700, "appSessions": 900,
+        "siteOrders": 18, "appOrders": 41 }
+    ]
+  },
+  "prev": { "hasTraffic": true, "sampled": false, "channels": [], "daily": [] }
+}
+```
+
+- `orderCr` = все созданные заказы / визиты или сессии.
+- `paidCr` = заказы со строгим `is_paid` / визиты или сессии.
+- `netCr` = неотменённые заказы / визиты или сессии.
+- Канал `all` суммирует сайт и приложение; пользователи между каналами не
+  дедуплицируются, поэтому знаменатель — аддитивные визиты/сессии.
+
+## `GET /api/analytics/status`
+
+Состояние фоновой синхронизации без раскрытия ID и токенов.
+
+```jsonc
+{
+  "enabled": true,
+  "sources": [
+    { "source": "metrika", "channel": "site", "configured": true,
+      "status": "success", "dateFrom": "2026-08-10", "dateTo": "2026-08-16",
+      "rowsImported": 7, "lastDataDay": "2026-08-16", "finishedAt": "..." },
+    { "source": "appmetrica", "channel": "app", "configured": false,
+      "status": "never", "rowsImported": 0 }
+  ]
+}
+```
+
 ## `GET /api/plan?year=YYYY` · `PUT /api/plan`
 
 План продаж NET (выкупленная выручка) по месяцам и каналам. Параметр `year`
@@ -297,8 +350,8 @@ AND. Фильтруют все стадии, разрезы и топы.
 `plan` и `traffic` не зависят от `metrics`).
 
 - **NET (факт)** = `kpi.stages.completed.revenue` за выбранный месяц.
-- **CR** = `kpi.orders` / визиты (гросс-заказы / визиты из трафика).
-- **AOV** = `kpi.revenue` / `kpi.orders` (средний чек на оформленный заказ).
+- **CR** = `kpi.netOrders` / визиты (неотменённые заказы / визиты из трафика).
+- **AOV** = `kpi.revenue` / `kpi.netOrders` (средний чек на неотменённый заказ).
 - **R** (выкупаемость по выручке) = `kpi.stages.completed.revenue` / `kpi.revenue`.
 - Тождество: **NET = визиты × CR × AOV × R**.
 - **Нужно визитов** = `план_NET / (CR × AOV × R)` при ненулевом знаменателе.
@@ -308,8 +361,10 @@ AND. Фильтруют все стадии, разрезы и топы.
 
 ## `GET /api/traffic?year=YYYY` · `PUT /api/traffic`
 
-Ручной ввод визитов по месяцам (v1: только `source=manual`). Параметр `year` —
-как у плана.
+Помесячный трафик для вкладки «Цель». Автоматические дневные записи Метрики и
+AppMetrica агрегируются по месяцу и имеют приоритет; ручные значения используются
+как fallback для месяца/канала без автоматических данных. Параметр `year` — как
+у плана.
 
 **GET**:
 
@@ -317,7 +372,8 @@ AND. Фильтруют все стадии, разрезы и топы.
 {
   "year": 2026,
   "months": [
-    { "month": 1, "site": 50000, "app": 12000 }
+    { "month": 1, "site": 50000, "app": 12000,
+      "siteSource": "metrika", "appSource": "appmetrica" }
     // ... 12 месяцев
   ]
 }
@@ -335,5 +391,4 @@ AND. Фильтруют все стадии, разрезы и топы.
 }
 ```
 
-Колонка `source` в БД зарезервирована под будущий импорт из Яндекс.Метрики и
-AppMetrica (см. roadmap).
+`PUT` всегда сохраняет `source=manual` и не перезаписывает дневные авто-данные.

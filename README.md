@@ -22,6 +22,8 @@ MVP-1 закрывает **источник «Битрикс» через заг
 - Вкладка **«Логистика»**: KPI доставки, службы, города (доля, оплаты, итоги).
 - Вкладка **«Динамика»**: недельные графики с переключателем метрик и разрезами
   (города/доставка/оплата/витрина/промокод) с легендой.
+- Вкладка **«Трафик и CR»**: сохранённые дневные визиты Яндекс Метрики и сессии
+  AppMetrica, конверсия в заказ/оплату/действующий заказ, статус синхронизации.
 - Сквозные фильтры (мультивыбор): город, область, витрина, способ оплаты,
   способ доставки, **промокод** (поле «Купоны заказа»).
 
@@ -85,6 +87,9 @@ internal/services/orders   — импорт и витрина заказов
 internal/services/metrics  — KPI, срезы, сравнение периодов
 internal/services/funnel   — воронка пути заказа и разрезы
 internal/services/logistics — логистика и недельная динамика
+internal/services/trafficsync — backfill и фоновая синхронизация аналитики
+internal/services/acquisition — верх воронки и CR web/app
+internal/connectors        — клиенты Reporting API Метрики и AppMetrica
 internal/handlers     — HTTP-слой (Fiber), отдача SPA в проде
 internal/container    — DI
 frontend/             — React + TS + Tailwind (Vite)
@@ -100,6 +105,7 @@ Dockerfile, docker-compose.yml, .env.example — деплой
 - [docs/import-bitrix.md](docs/import-bitrix.md) — контракт импорта и разбор позиций.
 - [docs/api.md](docs/api.md) — HTTP API.
 - [docs/deploy.md](docs/deploy.md) — развёртывание (Docker, прокси, app.onreza.ru).
+- [docs/yandex-analytics-setup.md](docs/yandex-analytics-setup.md) — OAuth и подключение Метрики/AppMetrica.
 - [docs/adr/README.md](docs/adr/README.md) — архитектурные решения.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — план развития.
 

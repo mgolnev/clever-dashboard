@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -22,6 +23,11 @@ func main() {
 		log.Fatalf("init container: %v", err)
 	}
 	defer c.Close()
+	syncCtx, stopSync := context.WithCancel(context.Background())
+	defer stopSync()
+	go c.TrafficSync.Run(syncCtx, cfg.AnalyticsSyncInterval, func(err error) {
+		log.Printf("analytics sync: %v", err)
+	})
 
 	app := fiber.New(fiber.Config{
 		BodyLimit:    64 * 1024 * 1024, // выгрузки Битрикса бывают крупными

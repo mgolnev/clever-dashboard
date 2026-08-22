@@ -11,10 +11,12 @@ func (d *DB) Migrate() error {
 	pkAuto := "INTEGER PRIMARY KEY AUTOINCREMENT"
 	tsType := "TEXT"
 	boolType := "INTEGER"
+	boolDefault := "0"
 	if d.IsPostgres() {
 		pkAuto = "BIGSERIAL PRIMARY KEY"
 		tsType = "TIMESTAMP"
 		boolType = "BOOLEAN"
+		boolDefault = "FALSE"
 	}
 
 	stmts := []string{
@@ -42,8 +44,8 @@ func (d *DB) Migrate() error {
 			delivery_cost INTEGER NOT NULL DEFAULT 0,
 			status_raw TEXT,
 			status_stage TEXT,
-			is_paid %s NOT NULL DEFAULT 0,
-			is_canceled %s NOT NULL DEFAULT 0,
+			is_paid %s NOT NULL DEFAULT %s,
+			is_canceled %s NOT NULL DEFAULT %s,
 			payment_system TEXT,
 			delivery_service TEXT,
 			channel TEXT,
@@ -51,12 +53,12 @@ func (d *DB) Migrate() error {
 			region TEXT,
 			city TEXT,
 			location_raw TEXT,
-			has_problem %s NOT NULL DEFAULT 0,
+			has_problem %s NOT NULL DEFAULT %s,
 			problem_desc TEXT,
 			cancel_reason TEXT,
 			items_count INTEGER NOT NULL DEFAULT 0,
 			import_id INTEGER
-		)`, tsType, tsType, boolType, boolType, boolType),
+		)`, tsType, tsType, boolType, boolDefault, boolType, boolDefault, boolType, boolDefault),
 
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS order_items (
 			id %s,
@@ -101,6 +103,38 @@ func (d *DB) Migrate() error {
 		)`, pkAuto, tsType),
 
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_traffic_uniq ON traffic(year, month, channel, source)`,
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS analytics_traffic_daily (
+			id %s,
+			day TEXT NOT NULL,
+			channel TEXT NOT NULL,
+			sessions INTEGER NOT NULL DEFAULT 0,
+			users INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL,
+			sampled %s NOT NULL DEFAULT %s,
+			sample_share REAL NOT NULL DEFAULT 1,
+			synced_at %s NOT NULL
+		)`, pkAuto, boolType, boolDefault, tsType),
+
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_traffic_daily_uniq
+			ON analytics_traffic_daily(day, channel, source)`,
+		`CREATE INDEX IF NOT EXISTS idx_analytics_traffic_daily_day
+			ON analytics_traffic_daily(day)`,
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS analytics_sync_runs (
+			id %s,
+			source TEXT NOT NULL,
+			date_from TEXT NOT NULL,
+			date_to TEXT NOT NULL,
+			status TEXT NOT NULL,
+			rows_imported INTEGER NOT NULL DEFAULT 0,
+			error_text TEXT,
+			started_at %s NOT NULL,
+			finished_at %s
+		)`, pkAuto, tsType, tsType),
+
+		`CREATE INDEX IF NOT EXISTS idx_analytics_sync_runs_source
+			ON analytics_sync_runs(source, id)`,
 	}
 
 	for _, s := range stmts {
@@ -112,7 +146,7 @@ func (d *DB) Migrate() error {
 	// Идемпотентные ALTER для БД, созданных до добавления полей. Ошибка
 	// "duplicate column" игнорируется.
 	for _, alter := range []string{
-		fmt.Sprintf("ALTER TABLE orders ADD COLUMN has_problem %s NOT NULL DEFAULT 0", boolType),
+		fmt.Sprintf("ALTER TABLE orders ADD COLUMN has_problem %s NOT NULL DEFAULT %s", boolType, boolDefault),
 		"ALTER TABLE orders ADD COLUMN problem_desc TEXT",
 		"ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
 		"ALTER TABLE orders ADD COLUMN coupon TEXT",

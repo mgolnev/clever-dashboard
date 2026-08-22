@@ -15,6 +15,10 @@
                                                   │
                                                   ▼
                                               metrics ──► HTTP API ──► React-дашборд
+
+Метрика / AppMetrica ──► connectors ──► trafficsync ──► analytics_traffic_daily
+                                                            │
+orders ──────────────────────────────────────────────────────┴──► acquisition ──► HTTP API
 ```
 
 ## Модули (Go)
@@ -25,6 +29,9 @@
 | `normalize` | Деньги, гео, статусы→стадии, атрибуты товара | — |
 | `services/orders` | Импорт, дедуп, хранение витрины | `ingestion`, `model`, `db` |
 | `services/metrics` | KPI, воронка, срезы, сравнение периодов | `db` |
+| `connectors/metrika`, `connectors/appmetrica` | Чтение дневных агрегатов Reporting API | `model` |
+| `services/trafficsync` | Backfill, upsert и журнал синхронизации | `db`, контракт источника |
+| `services/acquisition` | Трафик и CR по каналам | `db` |
 | `handlers` | HTTP (Fiber), валидация входа | `container` |
 | `container` | DI: сборка зависимостей | все сервисы |
 
@@ -36,6 +43,8 @@
 - **`raw_import`** — журнал загрузок (файл, период, счётчики). История и аудит.
 - **`orders`** — нормализованный заказ (PK = `order_number`, дедуп при повторной загрузке).
 - **`order_items`** — позиции заказа (из столбца «Позиции») с атрибутами товара.
+- **`analytics_traffic_daily`** — обезличенные дневные визиты/сессии по каналу.
+- **`analytics_sync_runs`** — аудит попыток загрузки внешней аналитики.
 
 Время хранится строкой `YYYY-MM-DD HH:MM:SS` — лексикографически сравнимо в
 SQLite и корректно приводится в Postgres; фильтры периода работают одинаково.
@@ -49,5 +58,5 @@ SQLite и корректно приводится в Postgres; фильтры п
 ## Дальнейшее развитие
 
 - Bitrix REST API как альтернативный `ingestion`-вход (этап MVP-2).
-- Коннекторы `connectors/metrika`, `connectors/appmetrica` (этапы 3–4) дополняют
-  `metrics` верхом воронки (трафик, визиты, конверсия) без изменения витрины заказов.
+- Bitrix API должен автоматизировать числитель конверсии; Метрика и AppMetrica
+  уже дополняют витрину сохранённым верхом воронки.

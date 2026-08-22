@@ -39,6 +39,12 @@
 | `STATIC_DIR` | Каталог собранного фронта | `/app/web` |
 | `LOGISTICS_PILOT_CITIES` | Города пилота (через запятую) | — |
 | `LOGISTICS_PILOT_START` | Дата старта пилота `YYYY-MM-DD` | — |
+| `ANALYTICS_SYNC_ENABLED` | Включить фоновую загрузку трафика | `false` |
+| `METRIKA_COUNTER_ID`, `METRIKA_OAUTH_TOKEN` | Счётчик и read-only OAuth Метрики | — |
+| `APPMETRICA_APPLICATION_ID`, `APPMETRICA_OAUTH_TOKEN` | Приложение и read-only OAuth AppMetrica | — |
+| `ANALYTICS_SYNC_INTERVAL` | Интервал обновления | `6h` |
+| `ANALYTICS_SYNC_LOOKBACK_DAYS` | Сколько последних дней перезапрашивать | `7` |
+| `ANALYTICS_BACKFILL_DAYS` | Глубина первой загрузки | `365` |
 
 SQLite-файл лежит в постоянном хранилище `/data` (volume `clever-data` в Docker,
 `persistenceMount` в Amvera) — данные переживают пересоздание/пересборку.
@@ -66,6 +72,9 @@ Amvera собирает наш `Dockerfile` сама; конфиг — `amvera.y
    `LOGISTICS_PILOT_CITIES`, `LOGISTICS_PILOT_START`. Менять `DB_DSN` не нужно —
    дефолт `/data/clever.db` уже указывает в постоянное хранилище.
 5. После старта откройте домен и загрузите выгрузку Битрикса через UI.
+
+Настройка ключей Метрики/AppMetrica и проверочные запросы описаны в
+[отдельной инструкции](yandex-analytics-setup.md).
 
 > SQLite пишется **только** в `/data` — это требование Amvera (папка `data/` в
 > коде и хранилище `/data` — разные вещи; данные вне `/data` теряются при

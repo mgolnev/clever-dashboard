@@ -35,6 +35,7 @@ interface Props {
   coupon: string[];
   onCouponChange: (coupon: string[]) => void;
   onChange: (start: string, end: string) => void;
+  showBusinessFilters?: boolean;
 }
 
 const COMPARE_MODES: { key: CompareMode; label: string }[] = [
@@ -76,6 +77,7 @@ export default function DateRangeBar({
   coupon,
   onCouponChange,
   onChange,
+  showBusinessFilters = true,
 }: Props) {
   return (
     <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -173,7 +175,7 @@ export default function DateRangeBar({
       </div>
 
       {/* Вторая строка: остальные фильтры */}
-      <div className="flex flex-wrap items-end gap-3 w-full border-t border-slate-100 pt-3">
+      {showBusinessFilters && <div className="flex flex-wrap items-end gap-3 w-full border-t border-slate-100 pt-3">
         <MultiSelect
           label="Область"
           allLabel="Все области"
@@ -222,7 +224,7 @@ export default function DateRangeBar({
           onChange={onCouponChange}
           width={180}
         />
-      </div>
+      </div>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import type { Bounds, City, FunnelReport, LogisticsReport, Range, Report } from "./types";
+import type { AcquisitionReport, AnalyticsStatus, Bounds, City, FunnelReport, LogisticsReport, Range, Report } from "./types";
 import DateRangeBar from "./components/DateRangeBar";
 import UploadCard from "./components/UploadCard";
 import KpiCards from "./components/KpiCards";
@@ -13,8 +13,9 @@ import FunnelTab from "./components/FunnelTab";
 import LogisticsTab from "./components/LogisticsTab";
 import DynamicsTab from "./components/DynamicsTab";
 import PlanTab from "./components/PlanTab";
+import AcquisitionTab from "./components/AcquisitionTab";
 
-type Tab = "overview" | "plan" | "customers" | "funnels" | "logistics" | "dynamics";
+type Tab = "overview" | "traffic" | "plan" | "customers" | "funnels" | "logistics" | "dynamics";
 type CompareMode = "prev" | "yoy" | "prevMonth" | "custom";
 
 // formatLocalDate форматирует дату в YYYY-MM-DD по локальным компонентам,
@@ -55,6 +56,8 @@ export default function App() {
   const [report, setReport] = useState<Report | null>(null);
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
   const [logistics, setLogistics] = useState<LogisticsReport | null>(null);
+  const [acquisition, setAcquisition] = useState<AcquisitionReport | null>(null);
+  const [analyticsStatus, setAnalyticsStatus] = useState<AnalyticsStatus | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [city, setCity] = useState<string[]>([]);
   const [regions, setRegions] = useState<City[]>([]);
@@ -94,8 +97,9 @@ export default function App() {
     if (tab === "overview" || tab === "customers") return report?.previous;
     if (tab === "funnels") return funnel?.previous;
     if (tab === "logistics" || tab === "dynamics") return logistics?.previous;
+    if (tab === "traffic") return acquisition?.previous;
     return undefined;
-  }, [compareEnabled, tab, report?.previous, funnel?.previous, logistics?.previous]);
+  }, [compareEnabled, tab, report?.previous, funnel?.previous, logistics?.previous, acquisition?.previous]);
 
   const loadBounds = useCallback(async () => {
     const b = await api.bounds();
@@ -146,11 +150,15 @@ export default function App() {
       api.metrics(start, end, f, cs, ce),
       api.funnel(start, end, f, cs, ce),
       api.logistics(start, end, f, undefined, cs, ce),
+      api.acquisition(start, end, cs, ce),
+      api.analyticsStatus(),
     ])
-      .then(([m, fn, l]) => {
+      .then(([m, fn, l, a, sync]) => {
         setReport(m);
         setFunnel(fn);
         setLogistics(l);
+        setAcquisition(a);
+        setAnalyticsStatus(sync);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -178,7 +186,7 @@ export default function App() {
       <header className="mb-5">
         <h1 className="text-2xl font-bold text-ink">CLEVER Dashboard</h1>
         <p className="text-sm text-slate-500">
-          Недельный обзор интернет-магазина CleverWear.ru · источник: Битрикс
+          Продажи, трафик и конверсия CleverWear.ru
         </p>
       </header>
 
@@ -190,6 +198,7 @@ export default function App() {
         {(
           [
             ["overview", "Обзор"],
+            ["traffic", "Трафик и CR"],
             ["plan", "Цель"],
             ["customers", "Клиенты"],
             ["funnels", "Воронки"],
@@ -257,6 +266,7 @@ export default function App() {
               coupon={coupon}
               onCouponChange={setCoupon}
               onChange={onChange}
+              showBusinessFilters={tab !== "traffic"}
             />
           </div>
         </>
@@ -272,6 +282,10 @@ export default function App() {
 
       {tab !== "plan" && tab === "funnels" && funnel && (
         <FunnelTab report={funnel} showCompare={compareEnabled} />
+      )}
+
+      {tab !== "plan" && tab === "traffic" && acquisition && (
+        <AcquisitionTab report={acquisition} status={analyticsStatus} showCompare={compareEnabled} />
       )}
 
       {tab !== "plan" && tab === "logistics" && !loading && !logistics && (

@@ -61,6 +61,11 @@ func (s *Service) Get(year int) (*TrafficReport, error) {
 	if err != nil {
 		return nil, err
 	}
+	daily, err := s.repo.loadDailyYear(year)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, daily...)
 	return s.buildReport(year, rows), nil
 }
 

@@ -57,3 +57,16 @@ type ImportResult struct {
 	// OrdersCleared — сколько заказов удалено перед загрузкой нового файла.
 	OrdersCleared int `json:"ordersCleared"`
 }
+
+// DailyTraffic — обезличенный дневной агрегат трафика из внешней аналитики.
+// Он не содержит идентификаторов пользователей и одинаково подходит для
+// визитов сайта и сессий приложения.
+type DailyTraffic struct {
+	Day         string
+	Channel     string
+	Sessions    int
+	Users       int
+	Source      string
+	Sampled     bool
+	SampleShare float64
+}

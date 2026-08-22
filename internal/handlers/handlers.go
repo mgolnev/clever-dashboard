@@ -46,6 +46,8 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Put("/plan", h.putPlan)
 	api.Get("/traffic", h.getTraffic)
 	api.Put("/traffic", h.putTraffic)
+	api.Get("/acquisition", h.acquisition)
+	api.Get("/analytics/status", h.analyticsStatus)
 }
 
 func (h *Handler) health(c *fiber.Ctx) error {
@@ -298,6 +300,24 @@ func (h *Handler) putTraffic(c *fiber.Ctx) error {
 	report, err := h.c.Traffic.Save(req.Year, req.Items)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) acquisition(c *fiber.Ctx) error {
+	report, err := h.c.Acquisition.Report(
+		c.Query("start"), c.Query("end"), c.Query("compareStart"), c.Query("compareEnd"),
+	)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) analyticsStatus(c *fiber.Ctx) error {
+	report, err := h.c.TrafficSync.Status()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(report)
 }

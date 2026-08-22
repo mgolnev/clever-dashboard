@@ -1,6 +1,8 @@
 package traffic
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/clever/clever-dashboard/internal/db"
@@ -39,6 +41,51 @@ func (r *Repository) loadYear(year int) ([]row, error) {
 		if err := rows.Scan(&rw.Month, &rw.Channel, &rw.Visits, &rw.Source, &rw.UpdatedAt); err != nil {
 			return nil, err
 		}
+		out = append(out, rw)
+	}
+	return out, rows.Err()
+}
+
+// loadDailyYear агрегирует сохранённые дневные данные внешней аналитики до
+// помесячного контракта /api/traffic. Ручные значения остаются fallback.
+func (r *Repository) loadDailyYear(year int) ([]row, error) {
+	start := fmt.Sprintf("%04d-01-01", year)
+	end := fmt.Sprintf("%04d-12-31", year)
+	rows, err := r.db.Query(r.db.Rebind(`SELECT day, channel, sessions, source, synced_at
+		FROM analytics_traffic_daily WHERE day >= ? AND day <= ? ORDER BY day`), start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type key struct {
+		month, channel, source string
+	}
+	agg := make(map[key]row)
+	for rows.Next() {
+		var day, channel, source string
+		var sessions int
+		var updated any
+		if err := rows.Scan(&day, &channel, &sessions, &source, &updated); err != nil {
+			return nil, err
+		}
+		if len(day) < 7 {
+			continue
+		}
+		month := day[5:7]
+		k := key{month: month, channel: channel, source: source}
+		cur := agg[k]
+		cur.Month, _ = strconv.Atoi(month)
+		cur.Channel = channel
+		cur.Source = source
+		cur.Visits += sessions
+		stamp := fmt.Sprint(updated)
+		if stamp > cur.UpdatedAt {
+			cur.UpdatedAt = stamp
+		}
+		agg[k] = cur
+	}
+	out := make([]row, 0, len(agg))
+	for _, rw := range agg {
 		out = append(out, rw)
 	}
 	return out, rows.Err()

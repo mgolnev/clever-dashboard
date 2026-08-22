@@ -36,9 +36,11 @@ function fromReports(plan: PlanReport, traffic: TrafficReport): Draft {
 function NumInput({
   value,
   onChange,
+  disabled = false,
 }: {
   value: number;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -47,7 +49,8 @@ function NumInput({
       step={1000}
       value={value || ""}
       onChange={(e) => onChange(Math.max(0, parseInt(e.target.value, 10) || 0))}
-      className="w-full min-w-[4.5rem] rounded border border-slate-200 px-1.5 py-1 text-right text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+      disabled={disabled}
+      className="w-full min-w-[4.5rem] rounded border border-slate-200 px-1.5 py-1 text-right text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
     />
   );
 }
@@ -90,10 +93,12 @@ export default function PlanEditor({ year, plan, traffic, onSaved }: Props) {
           { month, channel: "site", netTarget: draft.planSite[i] },
           { month, channel: "app", netTarget: draft.planApp[i] }
         );
-        trafficItems.push(
-          { month, channel: "site", visits: draft.trafficSite[i] },
-          { month, channel: "app", visits: draft.trafficApp[i] }
-        );
+        if (!traffic.months[i].siteSource || traffic.months[i].siteSource === "manual") {
+          trafficItems.push({ month, channel: "site", visits: draft.trafficSite[i] });
+        }
+        if (!traffic.months[i].appSource || traffic.months[i].appSource === "manual") {
+          trafficItems.push({ month, channel: "app", visits: draft.trafficApp[i] });
+        }
       }
       const p = await api.putPlan(year, planItems);
       const t = await api.putTraffic(year, trafficItems);
@@ -157,10 +162,12 @@ export default function PlanEditor({ year, plan, traffic, onSaved }: Props) {
                   <NumInput value={draft.planApp[i]} onChange={(v) => setPlan("planApp", i, v)} />
                 </td>
                 <td className="px-1 py-1">
-                  <NumInput value={draft.trafficSite[i]} onChange={(v) => setTraffic("trafficSite", i, v)} />
+                  <NumInput value={draft.trafficSite[i]} onChange={(v) => setTraffic("trafficSite", i, v)} disabled={traffic.months[i].siteSource === "metrika"} />
+                  {traffic.months[i].siteSource === "metrika" && <span className="mt-0.5 block text-center text-[9px] text-emerald-600">Метрика</span>}
                 </td>
                 <td className="px-1 py-1">
-                  <NumInput value={draft.trafficApp[i]} onChange={(v) => setTraffic("trafficApp", i, v)} />
+                  <NumInput value={draft.trafficApp[i]} onChange={(v) => setTraffic("trafficApp", i, v)} disabled={traffic.months[i].appSource === "appmetrica"} />
+                  {traffic.months[i].appSource === "appmetrica" && <span className="mt-0.5 block text-center text-[9px] text-emerald-600">AppMetrica</span>}
                 </td>
               </tr>
             ))}

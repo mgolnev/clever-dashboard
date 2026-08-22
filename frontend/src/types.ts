@@ -145,6 +145,59 @@ export interface TrafficReport {
   months: TrafficMonth[];
 }
 
+export interface AcquisitionChannel {
+  channel: "all" | "site" | "app";
+  label: string;
+  sessions: number;
+  orders: number;
+  paidOrders: number;
+  netOrders: number;
+  orderCr: number;
+  paidCr: number;
+  netCr: number;
+}
+
+export interface AcquisitionDay {
+  day: string;
+  siteSessions: number;
+  appSessions: number;
+  siteOrders: number;
+  appOrders: number;
+}
+
+export interface AcquisitionPeriod {
+  channels: AcquisitionChannel[];
+  daily: AcquisitionDay[];
+  hasTraffic: boolean;
+  sampled: boolean;
+}
+
+export interface AcquisitionReport {
+  period: Range;
+  previous: Range;
+  current: AcquisitionPeriod;
+  prev: AcquisitionPeriod;
+}
+
+export interface AnalyticsSourceStatus {
+  source: "metrika" | "appmetrica";
+  channel: "site" | "app";
+  configured: boolean;
+  status: "never" | "running" | "success" | "error";
+  dateFrom?: string;
+  dateTo?: string;
+  rowsImported: number;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  lastDataDay?: string;
+}
+
+export interface AnalyticsStatus {
+  enabled: boolean;
+  sources: AnalyticsSourceStatus[];
+}
+
 export interface FunnelStep {
   key: string;
   label: string;

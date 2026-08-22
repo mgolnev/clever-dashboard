@@ -1,5 +1,7 @@
 import type {
   Bounds,
+  AcquisitionReport,
+  AnalyticsStatus,
   City,
   FunnelReport,
   ImportResult,
@@ -69,6 +71,18 @@ export const api = {
   deliveries: () => fetch("/api/deliveries").then((r) => handle<City[]>(r)),
 
   coupons: () => fetch("/api/coupons").then((r) => handle<City[]>(r)),
+
+  acquisition: (start: string, end: string, compareStart?: string, compareEnd?: string) => {
+    const p = new URLSearchParams({ start, end });
+    if (compareStart && compareEnd) {
+      p.set("compareStart", compareStart);
+      p.set("compareEnd", compareEnd);
+    }
+    return fetch(`/api/acquisition?${p.toString()}`).then((r) => handle<AcquisitionReport>(r));
+  },
+
+  analyticsStatus: () =>
+    fetch("/api/analytics/status").then((r) => handle<AnalyticsStatus>(r)),
 
   metrics: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
     fetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
