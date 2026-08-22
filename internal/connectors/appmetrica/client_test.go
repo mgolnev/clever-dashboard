@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -44,5 +45,44 @@ func TestFetchParsesDailySessions(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Sessions != 77 || items[0].Source != "appmetrica" || items[0].Channel != "app" {
 		t.Fatalf("unexpected items: %+v", items)
+	}
+}
+
+func TestFetchSplitsLongRangeIntoWeeklyRequests(t *testing.T) {
+	var mu sync.Mutex
+	var ranges [][2]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		date1 := r.URL.Query().Get("date1")
+		date2 := r.URL.Query().Get("date2")
+		mu.Lock()
+		ranges = append(ranges, [2]string{date1, date2})
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{
+			"data":[{"dimensions":[{"name":"` + date1 + `"}],"metrics":[1]}],
+			"sampled":false,"sample_share":1
+		}`))
+	}))
+	defer server.Close()
+
+	client := New("84", "secret")
+	client.endpoint = server.URL
+	items, err := client.Fetch(context.Background(),
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]string{
+		{"2026-08-01", "2026-08-07"},
+		{"2026-08-08", "2026-08-14"},
+		{"2026-08-15", "2026-08-16"},
+	}
+	if len(items) != len(want) || len(ranges) != len(want) {
+		t.Fatalf("items=%d ranges=%v, want %d ranges", len(items), ranges, len(want))
+	}
+	for i := range want {
+		if ranges[i] != want[i] {
+			t.Fatalf("range %d = %v, want %v", i, ranges[i], want[i])
+		}
 	}
 }

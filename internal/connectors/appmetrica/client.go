@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	endpoint      = "https://api.appmetrica.yandex.ru/stat/v1/data"
-	queryRevision = "engagement-sessions-v1"
+	endpoint        = "https://api.appmetrica.yandex.ru/stat/v1/data"
+	reportChunkDays = 7
+	queryRevision   = "engagement-sessions-weekly-v2"
 )
 
 type Client struct {
@@ -58,6 +59,23 @@ func (c *Client) Fetch(ctx context.Context, from, to time.Time) ([]model.DailyTr
 	if !c.Configured() {
 		return nil, fmt.Errorf("AppMetrica не настроена")
 	}
+	var out []model.DailyTraffic
+	for chunkFrom := from; !chunkFrom.After(to); chunkFrom = chunkFrom.AddDate(0, 0, reportChunkDays) {
+		chunkTo := chunkFrom.AddDate(0, 0, reportChunkDays-1)
+		if chunkTo.After(to) {
+			chunkTo = to
+		}
+		items, err := c.fetchChunk(ctx, chunkFrom, chunkTo)
+		if err != nil {
+			return nil, fmt.Errorf("AppMetrica %s—%s: %w",
+				chunkFrom.Format("2006-01-02"), chunkTo.Format("2006-01-02"), err)
+		}
+		out = append(out, items...)
+	}
+	return out, nil
+}
+
+func (c *Client) fetchChunk(ctx context.Context, from, to time.Time) ([]model.DailyTraffic, error) {
 	q := url.Values{
 		"ids":               {c.applicationID},
 		"date1":             {from.Format("2006-01-02")},
