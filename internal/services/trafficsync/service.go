@@ -19,6 +19,10 @@ type Source interface {
 	Fetch(ctx context.Context, from, to time.Time) ([]model.DailyTraffic, error)
 }
 
+type revisionedSource interface {
+	Revision() string
+}
+
 type Service struct {
 	repo         *Repository
 	sources      []Source
@@ -61,8 +65,21 @@ func (s *Service) Sync(ctx context.Context) error {
 			syncErrors = append(syncErrors, fmt.Errorf("%s: %w", source.Name(), err))
 			continue
 		}
+		revision := ""
+		revisionChanged := false
+		if versioned, ok := source.(revisionedSource); ok {
+			revision = versioned.Revision()
+			if revision != "" {
+				storedRevision, revisionErr := s.repo.sourceRevision(source.Name())
+				if revisionErr != nil {
+					syncErrors = append(syncErrors, fmt.Errorf("%s: ревизия: %w", source.Name(), revisionErr))
+					continue
+				}
+				revisionChanged = storedRevision != revision
+			}
+		}
 		from := to.AddDate(0, 0, -(s.backfillDays - 1))
-		if latest != "" {
+		if latest != "" && !revisionChanged {
 			from = to.AddDate(0, 0, -(s.lookbackDays - 1))
 		}
 		if from.After(to) {
@@ -77,6 +94,9 @@ func (s *Service) Sync(ctx context.Context) error {
 		if fetchErr == nil {
 			items = completeDays(source, from, to, items)
 			fetchErr = s.repo.upsert(items)
+		}
+		if fetchErr == nil && revision != "" {
+			fetchErr = s.repo.setSourceRevision(source.Name(), revision)
 		}
 		status := "success"
 		if fetchErr != nil {

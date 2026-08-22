@@ -135,6 +135,12 @@ func (d *DB) Migrate() error {
 
 		`CREATE INDEX IF NOT EXISTS idx_analytics_sync_runs_source
 			ON analytics_sync_runs(source, id)`,
+
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS analytics_source_revisions (
+			source TEXT PRIMARY KEY,
+			revision TEXT NOT NULL,
+			updated_at %s NOT NULL
+		)`, tsType),
 	}
 
 	for _, s := range stmts {

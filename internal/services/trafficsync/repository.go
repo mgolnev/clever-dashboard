@@ -26,6 +26,23 @@ func (r *Repository) latestDataDay(source string) (string, error) {
 	return day.String, nil
 }
 
+func (r *Repository) sourceRevision(source string) (string, error) {
+	var revision string
+	err := r.db.QueryRow(r.db.Rebind(`SELECT revision FROM analytics_source_revisions WHERE source = ?`), source).Scan(&revision)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return revision, err
+}
+
+func (r *Repository) setSourceRevision(source, revision string) error {
+	_, err := r.db.Exec(r.db.Rebind(`INSERT INTO analytics_source_revisions (source, revision, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(source) DO UPDATE SET revision = excluded.revision, updated_at = excluded.updated_at`),
+		source, revision, time.Now().Format(timestampLayout))
+	return err
+}
+
 func (r *Repository) startRun(source, from, to string) (int64, error) {
 	now := time.Now().Format(timestampLayout)
 	if r.db.IsPostgres() {

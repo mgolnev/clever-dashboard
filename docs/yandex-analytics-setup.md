@@ -73,15 +73,25 @@ curl -sS -G 'https://api-metrika.yandex.net/stat/v1/data' \
 ```
 
 ```bash
-curl -sS -G 'https://api.appmetrica.yandex.com/stat/v1/data' \
+curl -sS -G 'https://api.appmetrica.yandex.ru/stat/v1/data' \
   -H "Authorization: OAuth ВАШ_ТОКЕН" \
   --data-urlencode 'ids=ID_ПРИЛОЖЕНИЯ' \
   --data-urlencode 'date1=2026-08-01' \
   --data-urlencode 'date2=2026-08-07' \
+  --data-urlencode 'group=Day' \
   --data-urlencode 'dimensions=ym:s:date' \
   --data-urlencode 'metrics=ym:s:sessions' \
-  --data-urlencode 'accuracy=full'
+  --data-urlencode 'accuracy=medium' \
+  --data-urlencode 'include_undefined=true' \
+  --data-urlencode 'currency=RUB' \
+  --data-urlencode 'sort=-ym:s:sessions' \
+  --data-urlencode 'lang=ru' \
+  --data-urlencode 'request_domain=ru'
 ```
+
+Запрос AppMetrica повторяет экспорт таблицы стандартного отчёта
+«Вовлечённость → Сессии». Часовой пояс в него явно не передаётся: Reporting API
+использует настройку приложения, поэтому итог можно напрямую сверять с UI.
 
 Ожидается HTTP 200 и массив `data`. Пустой массив означает, что за диапазон нет
 данных. `401` — токен не передан; `403` — токен не имеет нужного scope либо

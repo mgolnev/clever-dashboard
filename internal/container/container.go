@@ -51,7 +51,7 @@ func New(cfg config.Config) (*Container, error) {
 	trafficSvc := traffic.NewService(traffic.NewRepository(database))
 	acquisitionSvc := acquisition.NewService(acquisition.NewRepository(database))
 	metrikaClient := metrika.New(cfg.MetrikaCounterID, cfg.MetrikaOAuthToken, cfg.AnalyticsTimezone)
-	appMetricaClient := appmetrica.New(cfg.AppMetricaAppID, cfg.AppMetricaOAuthToken, cfg.AnalyticsTimezone)
+	appMetricaClient := appmetrica.New(cfg.AppMetricaAppID, cfg.AppMetricaOAuthToken)
 	trafficSyncSvc := trafficsync.NewService(
 		trafficsync.NewRepository(database),
 		[]trafficsync.Source{metrikaClient, appMetricaClient},

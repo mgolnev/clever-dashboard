@@ -12,13 +12,15 @@ import (
 )
 
 type fakeSource struct {
-	from time.Time
-	to   time.Time
+	from     time.Time
+	to       time.Time
+	revision string
 }
 
 func (f *fakeSource) Name() string     { return "metrika" }
 func (f *fakeSource) Channel() string  { return "site" }
 func (f *fakeSource) Configured() bool { return true }
+func (f *fakeSource) Revision() string { return f.revision }
 func (f *fakeSource) Fetch(_ context.Context, from, to time.Time) ([]model.DailyTraffic, error) {
 	f.from, f.to = from, to
 	return []model.DailyTraffic{{
@@ -42,7 +44,7 @@ func syncTestDB(t *testing.T) *db.DB {
 
 func TestSyncBackfillThenLookback(t *testing.T) {
 	d := syncTestDB(t)
-	source := &fakeSource{}
+	source := &fakeSource{revision: "v1"}
 	service := NewService(NewRepository(d), []Source{source}, true, 3, 10, "UTC")
 	if err := service.Sync(context.Background()); err != nil {
 		t.Fatal(err)
@@ -55,6 +57,26 @@ func TestSyncBackfillThenLookback(t *testing.T) {
 	}
 	if got := int(source.to.Sub(source.from).Hours()/24) + 1; got != 3 {
 		t.Fatalf("lookback range = %d days, want 3", got)
+	}
+	source.revision = "v2"
+	if err := service.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := int(source.to.Sub(source.from).Hours()/24) + 1; got != 10 {
+		t.Fatalf("revision backfill range = %d days, want 10", got)
+	}
+	var revision string
+	if err := d.QueryRow(`SELECT revision FROM analytics_source_revisions WHERE source='metrika'`).Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
+	if revision != "v2" {
+		t.Fatalf("revision = %q, want v2", revision)
+	}
+	if err := service.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := int(source.to.Sub(source.from).Hours()/24) + 1; got != 3 {
+		t.Fatalf("post-revision lookback range = %d days, want 3", got)
 	}
 	var sessions int
 	if err := d.QueryRow(`SELECT MAX(sessions) FROM analytics_traffic_daily WHERE source='metrika'`).Scan(&sessions); err != nil {

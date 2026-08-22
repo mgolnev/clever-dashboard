@@ -16,21 +16,22 @@ import (
 	"github.com/clever/clever-dashboard/internal/model"
 )
 
-const endpoint = "https://api.appmetrica.yandex.com/stat/v1/data"
+const (
+	endpoint      = "https://api.appmetrica.yandex.ru/stat/v1/data"
+	queryRevision = "engagement-sessions-v1"
+)
 
 type Client struct {
 	applicationID string
 	token         string
-	timezone      string
 	endpoint      string
 	http          *http.Client
 }
 
-func New(applicationID, token, timezone string) *Client {
+func New(applicationID, token string) *Client {
 	return &Client{
 		applicationID: strings.TrimSpace(applicationID),
 		token:         strings.TrimSpace(token),
-		timezone:      timezone,
 		endpoint:      endpoint,
 		http:          &http.Client{Timeout: 45 * time.Second},
 	}
@@ -39,6 +40,7 @@ func New(applicationID, token, timezone string) *Client {
 func (c *Client) Name() string     { return "appmetrica" }
 func (c *Client) Channel() string  { return "app" }
 func (c *Client) Configured() bool { return c.applicationID != "" && c.token != "" }
+func (c *Client) Revision() string { return queryRevision }
 
 type reportResponse struct {
 	Data []struct {
@@ -57,16 +59,19 @@ func (c *Client) Fetch(ctx context.Context, from, to time.Time) ([]model.DailyTr
 		return nil, fmt.Errorf("AppMetrica не настроена")
 	}
 	q := url.Values{
-		"ids":        {c.applicationID},
-		"date1":      {from.Format("2006-01-02")},
-		"date2":      {to.Format("2006-01-02")},
-		"dimensions": {"ym:s:date"},
-		"metrics":    {"ym:s:sessions"},
-		"accuracy":   {"full"},
-		"limit":      {"10000"},
-	}
-	if c.timezone != "" {
-		q.Set("timezone", c.timezone)
+		"ids":               {c.applicationID},
+		"date1":             {from.Format("2006-01-02")},
+		"date2":             {to.Format("2006-01-02")},
+		"group":             {"Day"},
+		"dimensions":        {"ym:s:date"},
+		"metrics":           {"ym:s:sessions"},
+		"accuracy":          {"medium"},
+		"include_undefined": {"true"},
+		"currency":          {"RUB"},
+		"sort":              {"-ym:s:sessions"},
+		"lang":              {"ru"},
+		"request_domain":    {"ru"},
+		"limit":             {"10000"},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint+"?"+q.Encode(), nil)
 	if err != nil {

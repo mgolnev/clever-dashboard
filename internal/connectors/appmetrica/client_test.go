@@ -13,8 +13,21 @@ func TestFetchParsesDailySessions(t *testing.T) {
 		if r.Header.Get("Authorization") != "OAuth secret" {
 			t.Fatalf("unexpected auth header: %q", r.Header.Get("Authorization"))
 		}
-		if r.URL.Query().Get("metrics") != "ym:s:sessions" || r.URL.Query().Get("ids") != "84" {
+		q := r.URL.Query()
+		if q.Get("metrics") != "ym:s:sessions" || q.Get("ids") != "84" {
 			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
+		}
+		for key, want := range map[string]string{
+			"group": "Day", "dimensions": "ym:s:date", "accuracy": "medium",
+			"include_undefined": "true", "currency": "RUB", "sort": "-ym:s:sessions",
+			"lang": "ru", "request_domain": "ru",
+		} {
+			if got := q.Get(key); got != want {
+				t.Fatalf("query %s = %q, want %q; raw query: %s", key, got, want, r.URL.RawQuery)
+			}
+		}
+		if q.Has("timezone") {
+			t.Fatalf("timezone must come from AppMetrica application settings: %s", r.URL.RawQuery)
 		}
 		_, _ = w.Write([]byte(`{
 			"data":[{"dimensions":[{"name":"2026-08-10"}],"metrics":[77]}],
@@ -23,7 +36,7 @@ func TestFetchParsesDailySessions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New("84", "secret", "Europe/Moscow")
+	client := New("84", "secret")
 	client.endpoint = server.URL
 	items, err := client.Fetch(context.Background(), time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC))
 	if err != nil {
