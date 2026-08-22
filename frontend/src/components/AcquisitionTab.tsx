@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type {
   AcquisitionChannel,
   AcquisitionDay,
@@ -5,7 +6,12 @@ import type {
   AnalyticsSourceStatus,
   AnalyticsStatus,
 } from "../types";
-import { delta, num, pct } from "../utils/format";
+import {
+  acquisitionBucketLabel,
+  aggregateAcquisitionDays,
+  type AcquisitionGranularity,
+} from "../utils/acquisition";
+import { delta, num, pct2 } from "../utils/format";
 import DeltaBadge from "./DeltaBadge";
 
 interface Props {
@@ -106,11 +112,11 @@ function ChannelCard({
       <div className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
         <div className="grid grid-cols-2 gap-5 py-4">
           <Metric label="Заказы" value={num(current.orders)} current={current.orders} previous={prev.orders} showCompare={showCompare} />
-          <Metric label="CR в заказ" value={current.sessions > 0 ? pct(current.orderCr) : "—"} current={current.orderCr} previous={prev.orderCr} showCompare={showCompare && current.sessions > 0} />
+          <Metric label="CR в заказ" value={current.sessions > 0 ? pct2(current.orderCr) : "—"} current={current.orderCr} previous={prev.orderCr} showCompare={showCompare && current.sessions > 0} />
         </div>
         <div className="grid grid-cols-2 gap-5 pt-4">
           <Metric label="Оплачено" value={num(current.paidOrders)} current={current.paidOrders} previous={prev.paidOrders} showCompare={showCompare} />
-          <Metric label="CR в оплату" value={current.sessions > 0 ? pct(current.paidCr) : "—"} current={current.paidCr} previous={prev.paidCr} showCompare={showCompare && current.sessions > 0} />
+          <Metric label="CR в оплату" value={current.sessions > 0 ? pct2(current.paidCr) : "—"} current={current.paidCr} previous={prev.paidCr} showCompare={showCompare && current.sessions > 0} />
         </div>
       </div>
     </section>
@@ -134,6 +140,12 @@ const DYNAMICS_CHANNELS: Array<{ channel: DynamicsChannel; label: string; accent
   { channel: "app", label: "Приложение", accent: "#8b5cf6" },
 ];
 
+const GRANULARITIES: Array<{ key: AcquisitionGranularity; label: string }> = [
+  { key: "day", label: "Дни" },
+  { key: "week", label: "Недели" },
+  { key: "month", label: "Месяцы" },
+];
+
 function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel): DynamicsPoint {
   const site = channel === "site" || channel === "all";
   const app = channel === "app" || channel === "all";
@@ -150,11 +162,7 @@ function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel): Dynamic
   };
 }
 
-function dayLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
-}
-
-function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; channel: DynamicsChannel; accent: string }) {
+function DailyChart({ points, channel, accent, granularity }: { points: AcquisitionDay[]; channel: DynamicsChannel; accent: string; granularity: AcquisitionGranularity }) {
   const values = points.map((point) => dynamicsPoint(point, channel));
   const maxTraffic = Math.max(1, ...values.map((point) => point.traffic));
   const maxCr = Math.max(0.1, ...values.flatMap((point) => [point.orderCr, point.paidCr])) * 1.15;
@@ -181,14 +189,14 @@ function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; cha
   return (
     <div className="overflow-x-auto pb-1">
       <div style={{ minWidth: width }}>
-        <svg className="h-[280px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Дневная динамика трафика и конверсии">
+        <svg className="h-[280px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Динамика трафика и конверсии">
           {[0, 0.5, 1].map((tick) => {
             const y = top + chartHeight * (1 - tick);
             return (
               <g key={tick}>
                 <line x1={left} x2={width - right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="3 5" />
                 <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{num(Math.round(maxTraffic * tick))}</text>
-                <text x={width - right + 8} y={y + 4} fontSize="10" fill="#94a3b8">{pct(maxCr * tick)}</text>
+                <text x={width - right + 8} y={y + 4} fontSize="10" fill="#94a3b8">{pct2(maxCr * tick)}</text>
               </g>
             );
           })}
@@ -198,9 +206,9 @@ function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; cha
             return (
               <g key={point.day}>
                 <rect x={x(index) - barWidth / 2} y={y} width={barWidth} height={top + chartHeight - y} rx="5" fill={accent} opacity="0.22">
-                  <title>{`${dayLabel(point.day)}: трафик ${num(point.traffic)}`}</title>
+                  <title>{`${acquisitionBucketLabel(point.day, granularity)}: трафик ${num(point.traffic)}`}</title>
                 </rect>
-                <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="10" fill="#94a3b8">{dayLabel(point.day)}</text>
+                <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="10" fill="#94a3b8">{acquisitionBucketLabel(point.day, granularity)}</text>
               </g>
             );
           })}
@@ -211,10 +219,10 @@ function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; cha
           {values.map((point, index) => (
             <g key={`${point.day}-conversion`}>
               <circle cx={x(index)} cy={crY(point.orderCr)} r="4" fill="#334155" stroke="white" strokeWidth="2">
-                <title>{`${dayLabel(point.day)}: заказов ${num(point.orders)}, CR ${pct(point.orderCr)}`}</title>
+                <title>{`${acquisitionBucketLabel(point.day, granularity)}: заказов ${num(point.orders)}, CR ${pct2(point.orderCr)}`}</title>
               </circle>
               <circle cx={x(index)} cy={crY(point.paidCr)} r="4" fill="#10b981" stroke="white" strokeWidth="2">
-                <title>{`${dayLabel(point.day)}: оплачено ${num(point.paidOrders)}, CR ${pct(point.paidCr)}`}</title>
+                <title>{`${acquisitionBucketLabel(point.day, granularity)}: оплачено ${num(point.paidOrders)}, CR ${pct2(point.paidCr)}`}</title>
               </circle>
             </g>
           ))}
@@ -224,7 +232,7 @@ function DailyChart({ points, channel, accent }: { points: AcquisitionDay[]; cha
   );
 }
 
-function DynamicsSection({ points, channel, label, accent }: { points: AcquisitionDay[]; channel: DynamicsChannel; label: string; accent: string }) {
+function DynamicsSection({ points, channel, label, accent, granularity }: { points: AcquisitionDay[]; channel: DynamicsChannel; label: string; accent: string; granularity: AcquisitionGranularity }) {
   return (
     <section className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} />
@@ -236,12 +244,17 @@ function DynamicsSection({ points, channel, label, accent }: { points: Acquisiti
           <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 bg-emerald-500" />CR оплаченных</span>
         </div>
       </div>
-      <DailyChart points={points} channel={channel} accent={accent} />
+      <DailyChart points={points} channel={channel} accent={accent} granularity={granularity} />
     </section>
   );
 }
 
 export default function AcquisitionTab({ report, status, showCompare = true }: Props) {
+  const [granularity, setGranularity] = useState<AcquisitionGranularity>("day");
+  const dynamicsPoints = useMemo(
+    () => aggregateAcquisitionDays(report.current.daily, granularity),
+    [report.current.daily, granularity]
+  );
   const prevByChannel = new Map(report.prev.channels.map((c) => [c.channel, c]));
   return (
     <div className="space-y-4">
@@ -273,13 +286,34 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
         ))}
       </div>
 
-      <div className="pt-2">
-        <h2 className="font-semibold text-ink">Динамика трафика и конверсии</h2>
-        <p className="mt-0.5 text-xs text-slate-500">Столбцы — трафик, линии — конверсия в оформленный и оплаченный заказ. Левая шкала — трафик, правая — CR.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+        <div>
+          <h2 className="font-semibold text-ink">Динамика трафика и конверсии</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Столбцы — трафик, линии — конверсия в оформленный и оплаченный заказ. Левая шкала — трафик, правая — CR.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-400">Группировка:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {GRANULARITIES.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setGranularity(item.key)}
+                className={`rounded-lg px-3 py-1 text-xs transition ${
+                  item.key === granularity
+                    ? "bg-brand text-white"
+                    : "border border-slate-300 text-slate-600 hover:border-brand hover:text-brand"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="space-y-4">
         {DYNAMICS_CHANNELS.map((item) => (
-          <DynamicsSection key={item.channel} points={report.current.daily} {...item} />
+          <DynamicsSection key={item.channel} points={dynamicsPoints} granularity={granularity} {...item} />
         ))}
       </div>
     </div>

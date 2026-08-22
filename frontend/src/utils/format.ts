@@ -10,6 +10,10 @@ export function pct(n: number): string {
   return `${n.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
 }
 
+export function pct2(n: number): string {
+  return `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
+}
+
 export interface Delta {
   diff: number;
   ratio: number | null;
@@ -67,4 +71,3 @@ export function floatAbs(n: number): string {
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
