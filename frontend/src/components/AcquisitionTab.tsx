@@ -20,6 +20,13 @@ interface Props {
   showCompare?: boolean;
 }
 
+type TrafficMode = "sessions" | "users";
+
+const TRAFFIC_MODES: Array<{ key: TrafficMode; label: string }> = [
+  { key: "sessions", label: "Визиты и сессии" },
+  { key: "users", label: "Пользователи" },
+];
+
 const SOURCE_NAMES = {
   metrika: "Яндекс Метрика",
   appmetrica: "AppMetrica",
@@ -91,14 +98,24 @@ function ChannelCard({
   current,
   previous,
   showCompare,
+  trafficMode,
 }: {
   current: AcquisitionChannel;
   previous?: AcquisitionChannel;
   showCompare?: boolean;
+  trafficMode: TrafficMode;
 }) {
   const prev = previous ?? current;
   const accent = current.channel === "site" ? "bg-sky-500" : current.channel === "app" ? "bg-violet-500" : "bg-indigo-600";
-  const denominator = current.channel === "site" ? "визитов" : current.channel === "app" ? "сессий" : "визитов + сессий";
+  const denominator = trafficMode === "users"
+    ? "дневных пользователей"
+    : current.channel === "site" ? "визитов" : current.channel === "app" ? "сессий" : "визитов + сессий";
+  const traffic = trafficMode === "users" ? current.users : current.sessions;
+  const prevTraffic = trafficMode === "users" ? prev.users : prev.sessions;
+  const orderCr = traffic > 0 ? (current.orders / traffic) * 100 : 0;
+  const prevOrderCr = prevTraffic > 0 ? (prev.orders / prevTraffic) * 100 : 0;
+  const paidCr = traffic > 0 ? (current.paidOrders / traffic) * 100 : 0;
+  const prevPaidCr = prevTraffic > 0 ? (prev.paidOrders / prevTraffic) * 100 : 0;
   return (
     <section className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <span className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
@@ -107,16 +124,16 @@ function ChannelCard({
         <span className="text-xs text-slate-400">{denominator}</span>
       </div>
       <div className="mt-5">
-        <Metric label="Трафик" value={num(current.sessions)} current={current.sessions} previous={prev.sessions} showCompare={showCompare} prominent />
+        <Metric label={trafficMode === "users" ? "Пользователи" : "Трафик"} value={num(traffic)} current={traffic} previous={prevTraffic} showCompare={showCompare} prominent />
       </div>
       <div className="mt-5 divide-y divide-slate-100 border-t border-slate-100">
         <div className="grid grid-cols-2 gap-5 py-4">
           <Metric label="Заказы" value={num(current.orders)} current={current.orders} previous={prev.orders} showCompare={showCompare} />
-          <Metric label="CR в заказ" value={current.sessions > 0 ? pct2(current.orderCr) : "—"} current={current.orderCr} previous={prev.orderCr} showCompare={showCompare && current.sessions > 0} />
+          <Metric label="CR в заказ" value={traffic > 0 ? pct2(orderCr) : "—"} current={orderCr} previous={prevOrderCr} showCompare={showCompare && traffic > 0} />
         </div>
         <div className="grid grid-cols-2 gap-5 pt-4">
           <Metric label="Оплачено" value={num(current.paidOrders)} current={current.paidOrders} previous={prev.paidOrders} showCompare={showCompare} />
-          <Metric label="CR в оплату" value={current.sessions > 0 ? pct2(current.paidCr) : "—"} current={current.paidCr} previous={prev.paidCr} showCompare={showCompare && current.sessions > 0} />
+          <Metric label="CR в оплату" value={traffic > 0 ? pct2(paidCr) : "—"} current={paidCr} previous={prevPaidCr} showCompare={showCompare && traffic > 0} />
         </div>
       </div>
     </section>
@@ -146,10 +163,12 @@ const GRANULARITIES: Array<{ key: AcquisitionGranularity; label: string }> = [
   { key: "month", label: "Месяцы" },
 ];
 
-function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel): DynamicsPoint {
+function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel, trafficMode: TrafficMode): DynamicsPoint {
   const site = channel === "site" || channel === "all";
   const app = channel === "app" || channel === "all";
-  const traffic = (site ? point.siteSessions : 0) + (app ? point.appSessions : 0);
+  const traffic = trafficMode === "users"
+    ? (site ? point.siteUsers : 0) + (app ? point.appUsers : 0)
+    : (site ? point.siteSessions : 0) + (app ? point.appSessions : 0);
   const orders = (site ? point.siteOrders : 0) + (app ? point.appOrders : 0);
   const paidOrders = (site ? point.sitePaidOrders : 0) + (app ? point.appPaidOrders : 0);
   return {
@@ -162,12 +181,13 @@ function dynamicsPoint(point: AcquisitionDay, channel: DynamicsChannel): Dynamic
   };
 }
 
-function DailyChart({ points, channel, accent, granularity }: { points: AcquisitionDay[]; channel: DynamicsChannel; accent: string; granularity: AcquisitionGranularity }) {
-  const values = points.map((point) => dynamicsPoint(point, channel));
+function DailyChart({ points, channel, accent, granularity, trafficMode }: { points: AcquisitionDay[]; channel: DynamicsChannel; accent: string; granularity: AcquisitionGranularity; trafficMode: TrafficMode }) {
+  const values = points.map((point) => dynamicsPoint(point, channel, trafficMode));
+  const trafficLabel = trafficMode === "users" ? "пользователи" : "трафик";
   const maxTraffic = Math.max(1, ...values.map((point) => point.traffic));
   const maxCr = Math.max(0.1, ...values.flatMap((point) => [point.orderCr, point.paidCr])) * 1.15;
   if (!values.some((point) => point.traffic)) {
-    return <p className="py-8 text-sm text-slate-400">Трафик за выбранный период пока не загружен — конверсию нельзя рассчитать.</p>;
+    return <p className="py-8 text-sm text-slate-400">Данные за выбранный период пока не загружены — конверсию нельзя рассчитать.</p>;
   }
 
   const width = Math.max(1000, values.length * 80);
@@ -189,7 +209,7 @@ function DailyChart({ points, channel, accent, granularity }: { points: Acquisit
   return (
     <div className="overflow-x-auto pb-1">
       <div style={{ minWidth: width }}>
-        <svg className="h-[280px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Динамика трафика и конверсии">
+        <svg className="h-[280px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Динамика: ${trafficLabel} и конверсия`}>
           {[0, 0.5, 1].map((tick) => {
             const y = top + chartHeight * (1 - tick);
             return (
@@ -206,7 +226,7 @@ function DailyChart({ points, channel, accent, granularity }: { points: Acquisit
             return (
               <g key={point.day}>
                 <rect x={x(index) - barWidth / 2} y={y} width={barWidth} height={top + chartHeight - y} rx="5" fill={accent} opacity="0.22">
-                  <title>{`${acquisitionBucketLabel(point.day, granularity)}: трафик ${num(point.traffic)}`}</title>
+                  <title>{`${acquisitionBucketLabel(point.day, granularity)}: ${trafficLabel} ${num(point.traffic)}`}</title>
                 </rect>
                 <text x={x(index)} y={height - 15} textAnchor="middle" fontSize="10" fill="#94a3b8">{acquisitionBucketLabel(point.day, granularity)}</text>
               </g>
@@ -232,25 +252,26 @@ function DailyChart({ points, channel, accent, granularity }: { points: Acquisit
   );
 }
 
-function DynamicsSection({ points, channel, label, accent, granularity }: { points: AcquisitionDay[]; channel: DynamicsChannel; label: string; accent: string; granularity: AcquisitionGranularity }) {
+function DynamicsSection({ points, channel, label, accent, granularity, trafficMode }: { points: AcquisitionDay[]; channel: DynamicsChannel; label: string; accent: string; granularity: AcquisitionGranularity; trafficMode: TrafficMode }) {
   return (
     <section className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-semibold text-ink">{label}</h3>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: accent, opacity: 0.3 }} />Трафик</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: accent, opacity: 0.3 }} />{trafficMode === "users" ? "Пользователи" : "Трафик"}</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 bg-slate-700" />CR оформленных</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 bg-emerald-500" />CR оплаченных</span>
         </div>
       </div>
-      <DailyChart points={points} channel={channel} accent={accent} granularity={granularity} />
+      <DailyChart points={points} channel={channel} accent={accent} granularity={granularity} trafficMode={trafficMode} />
     </section>
   );
 }
 
 export default function AcquisitionTab({ report, status, showCompare = true }: Props) {
   const [granularity, setGranularity] = useState<AcquisitionGranularity>("day");
+  const [trafficMode, setTrafficMode] = useState<TrafficMode>("sessions");
   const dynamicsPoints = useMemo(
     () => aggregateAcquisitionDays(report.current.daily, granularity),
     [report.current.daily, granularity]
@@ -280,16 +301,42 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Знаменатель конверсии</p>
+          {trafficMode === "users" && (
+            <p className="mt-0.5 text-[11px] text-slate-400">Сумма дневной аудитории: повторный пользователь в разные дни учитывается повторно.</p>
+          )}
+        </div>
+        <div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Знаменатель конверсии">
+          {TRAFFIC_MODES.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setTrafficMode(item.key)}
+              aria-pressed={trafficMode === item.key}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                trafficMode === item.key
+                  ? "bg-white text-brand shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3">
         {report.current.channels.map((channel) => (
-          <ChannelCard key={channel.channel} current={channel} previous={prevByChannel.get(channel.channel)} showCompare={showCompare} />
+          <ChannelCard key={channel.channel} current={channel} previous={prevByChannel.get(channel.channel)} showCompare={showCompare} trafficMode={trafficMode} />
         ))}
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
         <div>
           <h2 className="font-semibold text-ink">Динамика трафика и конверсии</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Столбцы — трафик, линии — конверсия в оформленный и оплаченный заказ. Левая шкала — трафик, правая — CR.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Столбцы — {trafficMode === "users" ? "дневная аудитория" : "трафик"}, линии — конверсия в оформленный и оплаченный заказ. Левая шкала — количество, правая — CR.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-slate-400">Группировка:</span>
@@ -313,7 +360,7 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
       </div>
       <div className="space-y-4">
         {DYNAMICS_CHANNELS.map((item) => (
-          <DynamicsSection key={item.channel} points={dynamicsPoints} granularity={granularity} {...item} />
+          <DynamicsSection key={item.channel} points={dynamicsPoints} granularity={granularity} trafficMode={trafficMode} {...item} />
         ))}
       </div>
     </div>

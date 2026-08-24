@@ -19,7 +19,7 @@ import (
 const (
 	endpoint        = "https://api.appmetrica.yandex.ru/stat/v1/data"
 	reportChunkDays = 7
-	queryRevision   = "engagement-sessions-weekly-v2"
+	queryRevision   = "engagement-sessions-users-weekly-v3"
 )
 
 type Client struct {
@@ -82,7 +82,7 @@ func (c *Client) fetchChunk(ctx context.Context, from, to time.Time) ([]model.Da
 		"date2":             {to.Format("2006-01-02")},
 		"group":             {"Day"},
 		"dimensions":        {"ym:s:date"},
-		"metrics":           {"ym:s:sessions"},
+		"metrics":           {"ym:s:sessions,ym:s:users"},
 		"accuracy":          {"medium"},
 		"include_undefined": {"true"},
 		"currency":          {"RUB"},
@@ -127,9 +127,13 @@ func (c *Client) fetchChunk(ctx context.Context, from, to time.Time) ([]model.Da
 		if _, err := time.Parse("2006-01-02", day); err != nil {
 			continue
 		}
+		users := 0
+		if len(row.Metrics) > 1 {
+			users = int(math.Round(row.Metrics[1]))
+		}
 		out = append(out, model.DailyTraffic{
 			Day: day, Channel: c.Channel(), Sessions: int(math.Round(row.Metrics[0])),
-			Source: c.Name(), Sampled: payload.Sampled, SampleShare: share,
+			Users: users, Source: c.Name(), Sampled: payload.Sampled, SampleShare: share,
 		})
 	}
 	return out, nil

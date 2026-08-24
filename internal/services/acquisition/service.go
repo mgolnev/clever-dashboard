@@ -73,6 +73,7 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 	for _, key := range []string{"site", "app"} {
 		t := totals[key]
 		all.Sessions += t.Sessions
+		all.Users += t.Users
 		all.Orders += t.Orders
 		all.PaidOrders += t.PaidOrders
 		all.NetOrders += t.NetOrders
@@ -92,6 +93,8 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 			Day:            key,
 			SiteSessions:   days[key]["site"].Sessions,
 			AppSessions:    days[key]["app"].Sessions,
+			SiteUsers:      days[key]["site"].Users,
+			AppUsers:       days[key]["app"].Users,
 			SiteOrders:     days[key]["site"].Orders,
 			AppOrders:      days[key]["app"].Orders,
 			SitePaidOrders: days[key]["site"].PaidOrders,
@@ -103,7 +106,7 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 
 func makeChannel(channel, label string, t channelTotals) ChannelMetrics {
 	m := ChannelMetrics{
-		Channel: channel, Label: label, Sessions: t.Sessions, Orders: t.Orders,
+		Channel: channel, Label: label, Sessions: t.Sessions, Users: t.Users, Orders: t.Orders,
 		PaidOrders: t.PaidOrders, NetOrders: t.NetOrders,
 	}
 	if t.Sessions > 0 {

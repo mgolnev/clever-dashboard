@@ -10,6 +10,7 @@ type ChannelMetrics struct {
 	Channel    string  `json:"channel"`
 	Label      string  `json:"label"`
 	Sessions   int     `json:"sessions"`
+	Users      int     `json:"users"`
 	Orders     int     `json:"orders"`
 	PaidOrders int     `json:"paidOrders"`
 	NetOrders  int     `json:"netOrders"`
@@ -22,6 +23,8 @@ type DailyPoint struct {
 	Day            string `json:"day"`
 	SiteSessions   int    `json:"siteSessions"`
 	AppSessions    int    `json:"appSessions"`
+	SiteUsers      int    `json:"siteUsers"`
+	AppUsers       int    `json:"appUsers"`
 	SiteOrders     int    `json:"siteOrders"`
 	AppOrders      int    `json:"appOrders"`
 	SitePaidOrders int    `json:"sitePaidOrders"`

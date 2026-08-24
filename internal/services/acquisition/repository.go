@@ -23,6 +23,7 @@ type channelTotals struct {
 
 type dailyValues struct {
 	Sessions   int
+	Users      int
 	Orders     int
 	PaidOrders int
 }
@@ -102,7 +103,7 @@ func (r *Repository) orderTotals(start, end string, totals map[string]channelTot
 }
 
 func (r *Repository) dailyTraffic(start, end string) (map[string]map[string]dailyValues, error) {
-	q := r.db.Rebind(`SELECT day, channel, COALESCE(SUM(sessions),0)
+	q := r.db.Rebind(`SELECT day, channel, COALESCE(SUM(sessions),0), COALESCE(SUM(users),0)
 		FROM analytics_traffic_daily WHERE day >= ? AND day <= ? GROUP BY day, channel`)
 	rows, err := r.db.Query(q, start, end)
 	if err != nil {
@@ -112,8 +113,8 @@ func (r *Repository) dailyTraffic(start, end string) (map[string]map[string]dail
 	out := make(map[string]map[string]dailyValues)
 	for rows.Next() {
 		var day, channel string
-		var sessions int
-		if err := rows.Scan(&day, &channel, &sessions); err != nil {
+		var sessions, users int
+		if err := rows.Scan(&day, &channel, &sessions, &users); err != nil {
 			return nil, err
 		}
 		if out[day] == nil {
@@ -121,6 +122,7 @@ func (r *Repository) dailyTraffic(start, end string) (map[string]map[string]dail
 		}
 		v := out[day][channel]
 		v.Sessions += sessions
+		v.Users += users
 		out[day][channel] = v
 	}
 	return out, rows.Err()

@@ -25,6 +25,8 @@ export function aggregateAcquisitionDays(
       day,
       siteSessions: 0,
       appSessions: 0,
+      siteUsers: 0,
+      appUsers: 0,
       siteOrders: 0,
       appOrders: 0,
       sitePaidOrders: 0,
@@ -32,6 +34,8 @@ export function aggregateAcquisitionDays(
     };
     bucket.siteSessions += point.siteSessions;
     bucket.appSessions += point.appSessions;
+    bucket.siteUsers += point.siteUsers;
+    bucket.appUsers += point.appUsers;
     bucket.siteOrders += point.siteOrders;
     bucket.appOrders += point.appOrders;
     bucket.sitePaidOrders += point.sitePaidOrders;

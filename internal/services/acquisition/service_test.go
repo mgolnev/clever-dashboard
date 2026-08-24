@@ -24,14 +24,14 @@ func testDB(t *testing.T) *db.DB {
 func TestReportAggregatesTrafficAndOrders(t *testing.T) {
 	d := testDB(t)
 	for _, args := range [][]any{
-		{"2026-08-10", "site", 100, "metrika"},
-		{"2026-08-11", "site", 200, "metrika"},
-		{"2026-08-10", "app", 50, "appmetrica"},
-		{"2026-08-11", "app", 50, "appmetrica"},
+		{"2026-08-10", "site", 100, 80, "metrika"},
+		{"2026-08-11", "site", 200, 150, "metrika"},
+		{"2026-08-10", "app", 50, 30, "appmetrica"},
+		{"2026-08-11", "app", 50, 25, "appmetrica"},
 	} {
 		if _, err := d.Exec(`INSERT INTO analytics_traffic_daily
-			(day, channel, sessions, source, sampled, sample_share, synced_at)
-			VALUES (?, ?, ?, ?, 0, 1, '2026-08-12 05:00:00')`, args...); err != nil {
+			(day, channel, sessions, users, source, sampled, sample_share, synced_at)
+			VALUES (?, ?, ?, ?, ?, 0, 1, '2026-08-12 05:00:00')`, args...); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -56,18 +56,19 @@ func TestReportAggregatesTrafficAndOrders(t *testing.T) {
 		t.Fatalf("unexpected report shape: %+v", report.Current)
 	}
 	all := report.Current.Channels[0]
-	if all.Sessions != 400 || all.Orders != 3 || all.PaidOrders != 2 || all.NetOrders != 2 {
+	if all.Sessions != 400 || all.Users != 285 || all.Orders != 3 || all.PaidOrders != 2 || all.NetOrders != 2 {
 		t.Fatalf("unexpected totals: %+v", all)
 	}
 	if all.OrderCR != 0.75 || all.PaidCR != 0.5 || all.NetCR != 0.5 {
 		t.Fatalf("unexpected conversion: %+v", all)
 	}
 	site := report.Current.Channels[1]
-	if site.Sessions != 300 || site.Orders != 2 || site.NetOrders != 1 {
+	if site.Sessions != 300 || site.Users != 230 || site.Orders != 2 || site.NetOrders != 1 {
 		t.Fatalf("unexpected site totals: %+v", site)
 	}
 	if report.Current.Daily[1].AppOrders != 1 || report.Current.Daily[1].AppPaidOrders != 1 ||
-		report.Current.Daily[1].SitePaidOrders != 0 || report.Current.Daily[1].SiteSessions != 200 {
+		report.Current.Daily[1].SitePaidOrders != 0 || report.Current.Daily[1].SiteSessions != 200 ||
+		report.Current.Daily[1].SiteUsers != 150 || report.Current.Daily[1].AppUsers != 25 {
 		t.Fatalf("unexpected daily point: %+v", report.Current.Daily[1])
 	}
 }

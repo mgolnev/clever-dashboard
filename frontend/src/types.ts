@@ -149,6 +149,7 @@ export interface AcquisitionChannel {
   channel: "all" | "site" | "app";
   label: string;
   sessions: number;
+  users: number;
   orders: number;
   paidOrders: number;
   netOrders: number;
@@ -161,6 +162,8 @@ export interface AcquisitionDay {
   day: string;
   siteSessions: number;
   appSessions: number;
+  siteUsers: number;
+  appUsers: number;
   siteOrders: number;
   appOrders: number;
   sitePaidOrders: number;

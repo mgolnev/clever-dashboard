@@ -80,7 +80,7 @@ curl -sS -G 'https://api.appmetrica.yandex.ru/stat/v1/data' \
   --data-urlencode 'date2=2026-08-07' \
   --data-urlencode 'group=Day' \
   --data-urlencode 'dimensions=ym:s:date' \
-  --data-urlencode 'metrics=ym:s:sessions' \
+  --data-urlencode 'metrics=ym:s:sessions,ym:s:users' \
   --data-urlencode 'accuracy=medium' \
   --data-urlencode 'include_undefined=true' \
   --data-urlencode 'currency=RUB' \

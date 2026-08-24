@@ -9,13 +9,13 @@ import (
 	"time"
 )
 
-func TestFetchParsesDailySessions(t *testing.T) {
+func TestFetchParsesDailySessionsAndUsers(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "OAuth secret" {
 			t.Fatalf("unexpected auth header: %q", r.Header.Get("Authorization"))
 		}
 		q := r.URL.Query()
-		if q.Get("metrics") != "ym:s:sessions" || q.Get("ids") != "84" {
+		if q.Get("metrics") != "ym:s:sessions,ym:s:users" || q.Get("ids") != "84" {
 			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
 		}
 		for key, want := range map[string]string{
@@ -31,7 +31,7 @@ func TestFetchParsesDailySessions(t *testing.T) {
 			t.Fatalf("timezone must come from AppMetrica application settings: %s", r.URL.RawQuery)
 		}
 		_, _ = w.Write([]byte(`{
-			"data":[{"dimensions":[{"name":"2026-08-10"}],"metrics":[77]}],
+			"data":[{"dimensions":[{"name":"2026-08-10"}],"metrics":[77,31]}],
 			"sampled":false,"sample_share":1
 		}`))
 	}))
@@ -43,7 +43,7 @@ func TestFetchParsesDailySessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].Sessions != 77 || items[0].Source != "appmetrica" || items[0].Channel != "app" {
+	if len(items) != 1 || items[0].Sessions != 77 || items[0].Users != 31 || items[0].Source != "appmetrica" || items[0].Channel != "app" {
 		t.Fatalf("unexpected items: %+v", items)
 	}
 }
