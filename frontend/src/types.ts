@@ -162,7 +162,7 @@ export interface AcquisitionChannel {
 }
 
 export interface EcommerceStage {
-  key: "product_view" | "add_to_cart" | "begin_checkout" | "created" | "paid";
+  key: "traffic" | "product_view" | "add_to_cart" | "begin_checkout" | "created" | "paid";
   label: string;
   count: number;
   unit: "пользователи" | "заказы";

@@ -158,7 +158,6 @@ function EcommerceFunnel({
   previous?: AcquisitionChannel;
   showCompare?: boolean;
 }) {
-  const previousStages = new Map((previous?.ecommerceFunnel ?? []).map((stage) => [stage.key, stage]));
   if (!current.ecommerceAvailable) {
     return (
       <div className="rounded-lg bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
@@ -167,8 +166,16 @@ function EcommerceFunnel({
     );
   }
 
-  const firstStage = current.ecommerceFunnel[0]?.count ?? 0;
-  const maxStage = Math.max(1, ...current.ecommerceFunnel.map((stage) => stage.count));
+  const currentStages: EcommerceStage[] = [
+    { key: "traffic", label: "Общий трафик", count: current.users, unit: "пользователи", fromPrevious: 100 },
+    ...current.ecommerceFunnel,
+  ];
+  const previousStages = new Map<EcommerceStage["key"], EcommerceStage>([
+    ...(previous ? [["traffic", { key: "traffic", label: "Общий трафик", count: previous.users, unit: "пользователи", fromPrevious: 100 }] as const] : []),
+    ...((previous?.ecommerceFunnel ?? []).map((stage) => [stage.key, stage] as const)),
+  ]);
+  const firstStage = currentStages[0]?.count ?? 0;
+  const maxStage = Math.max(1, ...currentStages.map((stage) => stage.count));
 
   return (
     <div>
@@ -179,10 +186,12 @@ function EcommerceFunnel({
         <span>От созданных</span>
       </div>
       <div className="divide-y divide-slate-100">
-        {current.ecommerceFunnel.map((stage, index) => {
+        {currentStages.map((stage, index) => {
           const prev = previousStages.get(stage.key);
-          const width = Math.max(24, Math.min(100, (stage.count / maxStage) * 100));
+          const width = 16 + 84 * Math.sqrt(stage.count / maxStage);
           const fromStart = firstStage > 0 ? (stage.count / firstStage) * 100 : 0;
+          const previousCount = currentStages[index - 1]?.count ?? 0;
+          const fromPrevious = index === 0 || previousCount <= 0 ? 100 : (stage.count / previousCount) * 100;
           return (
             <div key={stage.key} className="grid gap-3 py-3 lg:grid-cols-[minmax(0,1fr)_7rem_7rem_7rem] lg:items-end">
               <div className="min-w-0">
@@ -201,7 +210,7 @@ function EcommerceFunnel({
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 lg:contents">
-                <FunnelRate label="От предыдущего" value={index === 0 ? 100 : stage.fromPrevious} />
+                <FunnelRate label="От предыдущего" value={fromPrevious} />
                 <FunnelRate label="От начала" value={fromStart} />
                 <FunnelRate label="От созданных" value={stage.fromCreated} emphasized={stage.key === "paid"} />
               </div>
@@ -210,7 +219,7 @@ function EcommerceFunnel({
         })}
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-        <p>Этапы Яндекса — сумма дневной уникальной аудитории; «Созданные» и «Оплачено» — заказы Битрикса.</p>
+        <p>Трафик и этапы Яндекса — сумма дневной уникальной аудитории; «Созданные» и «Оплачено» — заказы Битрикса.</p>
         <p>Контроль Яндекса: purchase зафиксирован у {num(current.trackedPurchaseUsers)} польз.</p>
       </div>
     </div>
