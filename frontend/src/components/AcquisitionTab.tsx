@@ -5,6 +5,7 @@ import type {
   AcquisitionReport,
   AnalyticsSourceStatus,
   AnalyticsStatus,
+  EcommerceStage,
 } from "../types";
 import {
   acquisitionBucketLabel,
@@ -140,6 +141,73 @@ function ChannelCard({
   );
 }
 
+function stageTone(stage: EcommerceStage, channel: DynamicsChannel): string {
+  if (stage.key === "paid") return "bg-emerald-50 text-emerald-800 ring-emerald-200";
+  if (stage.key === "created") return "bg-indigo-50 text-indigo-800 ring-indigo-200";
+  if (channel === "app") return "bg-violet-50 text-violet-800 ring-violet-200";
+  if (channel === "site") return "bg-sky-50 text-sky-800 ring-sky-200";
+  return "bg-slate-50 text-slate-800 ring-slate-200";
+}
+
+function EcommerceFunnel({
+  current,
+  previous,
+  showCompare,
+}: {
+  current: AcquisitionChannel;
+  previous?: AcquisitionChannel;
+  showCompare?: boolean;
+}) {
+  const previousStages = new Map((previous?.ecommerceFunnel ?? []).map((stage) => [stage.key, stage]));
+  if (!current.ecommerceAvailable) {
+    return (
+      <div className="rounded-lg bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+        E-commerce события за выбранный период ещё не загружены.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex min-w-[820px] items-stretch gap-2">
+        {current.ecommerceFunnel.map((stage, index) => {
+          const prev = previousStages.get(stage.key);
+          return (
+            <div key={stage.key} className="contents">
+              {index > 0 && (
+                <div className="flex w-16 shrink-0 flex-col items-center justify-center text-center">
+                  <span className="text-lg text-slate-300">→</span>
+                  <span className="mt-1 text-[11px] font-medium tabular-nums text-slate-500">
+                    {stage.fromPrevious > 0 ? pct2(stage.fromPrevious) : "—"}
+                  </span>
+                  <span className="text-[10px] text-slate-400">от этапа</span>
+                </div>
+              )}
+              <article className={`min-w-0 flex-1 rounded-xl px-4 py-4 ring-1 ${stageTone(stage, current.channel)}`}>
+                <p className="min-h-8 text-xs font-medium leading-4 opacity-75">{stage.label}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-2xl font-semibold tabular-nums">{num(stage.count)}</span>
+                  {showCompare && prev && <DeltaBadge d={delta(stage.count, prev.count)} mode="pct" />}
+                </div>
+                <p className="mt-1 text-[11px] opacity-60">{stage.unit}</p>
+                {stage.key === "paid" && stage.fromCreated !== undefined && (
+                  <p className="mt-3 border-t border-current/10 pt-2 text-xs font-semibold">
+                    {pct2(stage.fromCreated)} от созданных
+                  </p>
+                )}
+              </article>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+        <p>Этапы Яндекса — сумма дневной уникальной аудитории; «Созданные» и «Оплачено» — заказы Битрикса.</p>
+        <p>Контроль Яндекса: purchase зафиксирован у {num(current.trackedPurchaseUsers)} польз.</p>
+      </div>
+    </div>
+  );
+}
+
 type DynamicsChannel = AcquisitionChannel["channel"];
 
 interface DynamicsPoint {
@@ -272,11 +340,14 @@ function DynamicsSection({ points, channel, label, accent, granularity, trafficM
 export default function AcquisitionTab({ report, status, showCompare = true }: Props) {
   const [granularity, setGranularity] = useState<AcquisitionGranularity>("day");
   const [trafficMode, setTrafficMode] = useState<TrafficMode>("sessions");
+  const [funnelChannel, setFunnelChannel] = useState<DynamicsChannel>("all");
   const dynamicsPoints = useMemo(
     () => aggregateAcquisitionDays(report.current.daily, granularity),
     [report.current.daily, granularity]
   );
   const prevByChannel = new Map(report.prev.channels.map((c) => [c.channel, c]));
+  const funnelCurrent = report.current.channels.find((channel) => channel.channel === funnelChannel) ?? report.current.channels[0];
+  const funnelPrevious = prevByChannel.get(funnelChannel);
   return (
     <div className="space-y-4">
       <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -332,6 +403,33 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
           <ChannelCard key={channel.channel} current={channel} previous={prevByChannel.get(channel.channel)} showCompare={showCompare} trafficMode={trafficMode} />
         ))}
       </div>
+
+      <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-ink">E-commerce воронка</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Путь от просмотра товара до оплаты. Финальная конверсия всегда считается от созданных заказов Битрикса.</p>
+          </div>
+          <div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Канал E-commerce воронки">
+            {DYNAMICS_CHANNELS.map((item) => (
+              <button
+                key={item.channel}
+                type="button"
+                onClick={() => setFunnelChannel(item.channel)}
+                aria-pressed={funnelChannel === item.channel}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  funnelChannel === item.channel ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-x-auto pb-1">
+          <EcommerceFunnel current={funnelCurrent} previous={funnelPrevious} showCompare={showCompare} />
+        </div>
+      </section>
 
       <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
         <div>

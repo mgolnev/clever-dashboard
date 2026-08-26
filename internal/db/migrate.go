@@ -121,6 +121,25 @@ func (d *DB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_analytics_traffic_daily_day
 			ON analytics_traffic_daily(day)`,
 
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS analytics_ecommerce_daily (
+			id %s,
+			day TEXT NOT NULL,
+			channel TEXT NOT NULL,
+			product_view_users INTEGER NOT NULL DEFAULT 0,
+			add_to_cart_users INTEGER NOT NULL DEFAULT 0,
+			begin_checkout_users INTEGER NOT NULL DEFAULT 0,
+			tracked_purchase_users INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL,
+			sampled %s NOT NULL DEFAULT %s,
+			sample_share REAL NOT NULL DEFAULT 1,
+			synced_at %s NOT NULL
+		)`, pkAuto, boolType, boolDefault, tsType),
+
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_ecommerce_daily_uniq
+			ON analytics_ecommerce_daily(day, channel, source)`,
+		`CREATE INDEX IF NOT EXISTS idx_analytics_ecommerce_daily_day
+			ON analytics_ecommerce_daily(day)`,
+
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS analytics_sync_runs (
 			id %s,
 			source TEXT NOT NULL,

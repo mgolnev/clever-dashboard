@@ -60,6 +60,9 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 	if err := s.repo.orderTotals(start, end, totals); err != nil {
 		return PeriodData{}, err
 	}
+	if err := s.repo.ecommerceTotals(start, end, totals); err != nil {
+		return PeriodData{}, err
+	}
 	days, err := s.repo.dailyTraffic(start, end)
 	if err != nil {
 		return PeriodData{}, err
@@ -78,6 +81,10 @@ func (s *Service) period(st, en time.Time) (PeriodData, error) {
 		all.PaidOrders += t.PaidOrders
 		all.NetOrders += t.NetOrders
 		all.Sampled = all.Sampled || t.Sampled
+		all.ProductViewUsers += t.ProductViewUsers
+		all.AddToCartUsers += t.AddToCartUsers
+		all.TrackedPurchaseUsers += t.TrackedPurchaseUsers
+		all.EcommerceRows += t.EcommerceRows
 		label := "Сайт"
 		if key == "app" {
 			label = "Приложение"
@@ -108,13 +115,49 @@ func makeChannel(channel, label string, t channelTotals) ChannelMetrics {
 	m := ChannelMetrics{
 		Channel: channel, Label: label, Sessions: t.Sessions, Users: t.Users, Orders: t.Orders,
 		PaidOrders: t.PaidOrders, NetOrders: t.NetOrders,
+		EcommerceAvailable:   t.EcommerceRows > 0,
+		TrackedPurchaseUsers: t.TrackedPurchaseUsers,
 	}
 	if t.Sessions > 0 {
 		m.OrderCR = round2(float64(t.Orders) / float64(t.Sessions) * 100)
 		m.PaidCR = round2(float64(t.PaidOrders) / float64(t.Sessions) * 100)
 		m.NetCR = round2(float64(t.NetOrders) / float64(t.Sessions) * 100)
 	}
+	m.EcommerceFunnel = makeEcommerceFunnel(channel, t)
 	return m
+}
+
+func makeEcommerceFunnel(channel string, t channelTotals) []EcommerceStage {
+	stages := []EcommerceStage{
+		{Key: "product_view", Label: "Просмотрели товар", Count: t.ProductViewUsers, Unit: "пользователи", FromPrevious: 100},
+		{Key: "add_to_cart", Label: "Добавили в корзину", Count: t.AddToCartUsers, Unit: "пользователи", FromPrevious: conversion(t.AddToCartUsers, t.ProductViewUsers)},
+	}
+	previous := t.AddToCartUsers
+	if channel == "app" && t.BeginCheckoutUsers > 0 {
+		stages = append(stages, EcommerceStage{
+			Key: "begin_checkout", Label: "Начали оформление", Count: t.BeginCheckoutUsers,
+			Unit: "пользователи", FromPrevious: conversion(t.BeginCheckoutUsers, previous),
+		})
+		previous = t.BeginCheckoutUsers
+	}
+	createdBase := 100.0
+	stages = append(stages, EcommerceStage{
+		Key: "created", Label: "Созданные заказы", Count: t.Orders, Unit: "заказы",
+		FromPrevious: conversion(t.Orders, previous), FromCreated: &createdBase,
+	})
+	paidFromCreated := conversion(t.PaidOrders, t.Orders)
+	stages = append(stages, EcommerceStage{
+		Key: "paid", Label: "Оплачено", Count: t.PaidOrders, Unit: "заказы",
+		FromPrevious: paidFromCreated, FromCreated: &paidFromCreated,
+	})
+	return stages
+}
+
+func conversion(value, base int) float64 {
+	if base <= 0 {
+		return 0
+	}
+	return round2(float64(value) / float64(base) * 100)
 }
 
 func resolvePrevRange(st, en time.Time, days int, compareStart, compareEnd string) (time.Time, time.Time, error) {

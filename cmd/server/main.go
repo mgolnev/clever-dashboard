@@ -26,7 +26,10 @@ func main() {
 	syncCtx, stopSync := context.WithCancel(context.Background())
 	defer stopSync()
 	go c.TrafficSync.Run(syncCtx, cfg.AnalyticsSyncInterval, func(err error) {
-		log.Printf("analytics sync: %v", err)
+		log.Printf("traffic analytics sync: %v", err)
+	})
+	go c.EcommerceSync.Run(syncCtx, cfg.AnalyticsSyncInterval, func(err error) {
+		log.Printf("e-commerce analytics sync: %v", err)
 	})
 
 	app := fiber.New(fiber.Config{

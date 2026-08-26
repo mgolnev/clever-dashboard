@@ -70,3 +70,18 @@ type DailyTraffic struct {
 	Sampled     bool
 	SampleShare float64
 }
+
+// DailyEcommerce — обезличенная дневная аудитория этапов E-commerce.
+// Метрики пользователей хранятся отдельно от заказов: созданные и оплаченные
+// заказы остаются каноническими данными Битрикса.
+type DailyEcommerce struct {
+	Day                  string
+	Channel              string
+	ProductViewUsers     int
+	AddToCartUsers       int
+	BeginCheckoutUsers   int
+	TrackedPurchaseUsers int
+	Source               string
+	Sampled              bool
+	SampleShare          float64
+}

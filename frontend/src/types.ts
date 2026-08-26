@@ -156,6 +156,18 @@ export interface AcquisitionChannel {
   orderCr: number;
   paidCr: number;
   netCr: number;
+  ecommerceAvailable: boolean;
+  trackedPurchaseUsers: number;
+  ecommerceFunnel: EcommerceStage[];
+}
+
+export interface EcommerceStage {
+  key: "product_view" | "add_to_cart" | "begin_checkout" | "created" | "paid";
+  label: string;
+  count: number;
+  unit: "пользователи" | "заказы";
+  fromPrevious: number;
+  fromCreated?: number;
 }
 
 export interface AcquisitionDay {

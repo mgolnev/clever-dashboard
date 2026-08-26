@@ -47,6 +47,19 @@ func TestReportAggregatesTrafficAndOrders(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	for _, args := range [][]any{
+		{"2026-08-10", "site", 60, 20, 10, 5, "metrika-ecommerce"},
+		{"2026-08-11", "site", 40, 10, 5, 4, "metrika-ecommerce"},
+		{"2026-08-10", "app", 30, 15, 8, 3, "appmetrica-ecommerce"},
+		{"2026-08-11", "app", 20, 10, 7, 2, "appmetrica-ecommerce"},
+	} {
+		if _, err := d.Exec(`INSERT INTO analytics_ecommerce_daily
+			(day, channel, product_view_users, add_to_cart_users, begin_checkout_users,
+			 tracked_purchase_users, source, sampled, sample_share, synced_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, '2026-08-12 05:00:00')`, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	report, err := NewService(NewRepository(d)).Report("2026-08-10", "2026-08-11", "", "")
 	if err != nil {
@@ -62,9 +75,19 @@ func TestReportAggregatesTrafficAndOrders(t *testing.T) {
 	if all.OrderCR != 0.75 || all.PaidCR != 0.5 || all.NetCR != 0.5 {
 		t.Fatalf("unexpected conversion: %+v", all)
 	}
+	if !all.EcommerceAvailable || all.TrackedPurchaseUsers != 14 || len(all.EcommerceFunnel) != 4 {
+		t.Fatalf("unexpected all ecommerce funnel: %+v", all)
+	}
+	if paid := all.EcommerceFunnel[3]; paid.Count != 2 || paid.FromCreated == nil || *paid.FromCreated != 66.67 {
+		t.Fatalf("unexpected paid stage: %+v", paid)
+	}
 	site := report.Current.Channels[1]
 	if site.Sessions != 300 || site.Users != 230 || site.Orders != 2 || site.NetOrders != 1 {
 		t.Fatalf("unexpected site totals: %+v", site)
+	}
+	app := report.Current.Channels[2]
+	if len(app.EcommerceFunnel) != 5 || app.EcommerceFunnel[2].Key != "begin_checkout" {
+		t.Fatalf("unexpected app ecommerce funnel: %+v", app.EcommerceFunnel)
 	}
 	if report.Current.Daily[1].AppOrders != 1 || report.Current.Daily[1].AppPaidOrders != 1 ||
 		report.Current.Daily[1].SitePaidOrders != 0 || report.Current.Daily[1].SiteSessions != 200 ||

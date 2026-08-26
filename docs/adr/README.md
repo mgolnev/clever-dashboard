@@ -9,6 +9,7 @@
 | [0003](0003-period-comparison-mode.md) | Режим сравнения периодов (compareStart/compareEnd, глобальный тумблер, overlay) | Принято |
 | [0004](0004-gross-and-net-redemption.md) | Валовой и чистый выкуп | Принято |
 | [0005](0005-persisted-yandex-traffic.md) | Сохранение дневного трафика Метрики и AppMetrica | Принято |
+| [0006](0006-persisted-ecommerce-funnel.md) | Сохранённая E-commerce воронка с итогом из Битрикса | Принято |
 
 ## Когда заводить ADR
 

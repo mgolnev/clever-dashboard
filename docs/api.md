@@ -271,7 +271,19 @@ AND. Фильтруют все стадии, разрезы и топы.
       {
         "channel": "site", "label": "Сайт", "sessions": 12000, "users": 8400,
         "orders": 128, "paidOrders": 96, "netOrders": 110,
-        "orderCr": 1.07, "paidCr": 0.8, "netCr": 0.92
+        "orderCr": 1.07, "paidCr": 0.8, "netCr": 0.92,
+        "ecommerceAvailable": true,
+        "trackedPurchaseUsers": 70,
+        "ecommerceFunnel": [
+          { "key": "product_view", "label": "Просмотрели товар", "count": 6088,
+            "unit": "пользователи", "fromPrevious": 100 },
+          { "key": "add_to_cart", "label": "Добавили в корзину", "count": 680,
+            "unit": "пользователи", "fromPrevious": 11.17 },
+          { "key": "created", "label": "Созданные заказы", "count": 128,
+            "unit": "заказы", "fromPrevious": 18.82, "fromCreated": 100 },
+          { "key": "paid", "label": "Оплачено", "count": 96,
+            "unit": "заказы", "fromPrevious": 75, "fromCreated": 75 }
+        ]
       }
     ],
     "daily": [
@@ -293,6 +305,11 @@ AND. Фильтруют все стадии, разрезы и топы.
 - `users` и `daily.*Users` — сумма дневной аудитории. Повторный пользователь в
   разные дни и один пользователь сайта и приложения учитываются повторно.
 - Канал `all` суммирует сайт и приложение без межканальной дедупликации.
+- `ecommerceFunnel` объединяет аудиторию событий Яндекса с каноническими
+  заказами Битрикса. Для `paid` поле `fromCreated` всегда равно
+  `paidOrders / orders`; `trackedPurchaseUsers` служит только для сверки трекинга.
+- Этап `begin_checkout` возвращается для приложения при наличии данных. В общей
+  и веб-воронке он пропущен, пока нет сопоставимого надёжного этапа сайта.
 - Сессии и пользователи приложения загружаются публичным Reporting API по запросу, который
   экспортирует стандартный отчёт AppMetrica «Вовлечённость → Сессии».
 

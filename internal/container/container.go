@@ -8,6 +8,7 @@ import (
 	"github.com/clever/clever-dashboard/internal/connectors/metrika"
 	"github.com/clever/clever-dashboard/internal/db"
 	"github.com/clever/clever-dashboard/internal/services/acquisition"
+	"github.com/clever/clever-dashboard/internal/services/ecomsync"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
@@ -18,16 +19,17 @@ import (
 )
 
 type Container struct {
-	Cfg         config.Config
-	DB          *db.DB
-	Orders      *orders.Service
-	Metrics     *metrics.Service
-	Funnel      *funnel.Service
-	Logistics   *logistics.Service
-	Plan        *plan.Service
-	Traffic     *traffic.Service
-	Acquisition *acquisition.Service
-	TrafficSync *trafficsync.Service
+	Cfg           config.Config
+	DB            *db.DB
+	Orders        *orders.Service
+	Metrics       *metrics.Service
+	Funnel        *funnel.Service
+	Logistics     *logistics.Service
+	Plan          *plan.Service
+	Traffic       *traffic.Service
+	Acquisition   *acquisition.Service
+	TrafficSync   *trafficsync.Service
+	EcommerceSync *ecomsync.Service
 }
 
 func New(cfg config.Config) (*Container, error) {
@@ -60,18 +62,27 @@ func New(cfg config.Config) (*Container, error) {
 		cfg.AnalyticsBackfillDays,
 		cfg.AnalyticsTimezone,
 	)
+	ecommerceSyncSvc := ecomsync.NewService(
+		ecomsync.NewRepository(database),
+		[]ecomsync.Source{metrikaClient, appMetricaClient},
+		cfg.AnalyticsSyncEnabled,
+		cfg.AnalyticsLookbackDays,
+		cfg.AnalyticsBackfillDays,
+		cfg.AnalyticsTimezone,
+	)
 
 	return &Container{
-		Cfg:         cfg,
-		DB:          database,
-		Orders:      ordersSvc,
-		Metrics:     metricsSvc,
-		Funnel:      funnelSvc,
-		Logistics:   logisticsSvc,
-		Plan:        planSvc,
-		Traffic:     trafficSvc,
-		Acquisition: acquisitionSvc,
-		TrafficSync: trafficSyncSvc,
+		Cfg:           cfg,
+		DB:            database,
+		Orders:        ordersSvc,
+		Metrics:       metricsSvc,
+		Funnel:        funnelSvc,
+		Logistics:     logisticsSvc,
+		Plan:          planSvc,
+		Traffic:       trafficSvc,
+		Acquisition:   acquisitionSvc,
+		TrafficSync:   trafficSyncSvc,
+		EcommerceSync: ecommerceSyncSvc,
 	}, nil
 }
 

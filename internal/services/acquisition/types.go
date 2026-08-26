@@ -7,16 +7,28 @@ type Range struct {
 }
 
 type ChannelMetrics struct {
-	Channel    string  `json:"channel"`
-	Label      string  `json:"label"`
-	Sessions   int     `json:"sessions"`
-	Users      int     `json:"users"`
-	Orders     int     `json:"orders"`
-	PaidOrders int     `json:"paidOrders"`
-	NetOrders  int     `json:"netOrders"`
-	OrderCR    float64 `json:"orderCr"`
-	PaidCR     float64 `json:"paidCr"`
-	NetCR      float64 `json:"netCr"`
+	Channel              string           `json:"channel"`
+	Label                string           `json:"label"`
+	Sessions             int              `json:"sessions"`
+	Users                int              `json:"users"`
+	Orders               int              `json:"orders"`
+	PaidOrders           int              `json:"paidOrders"`
+	NetOrders            int              `json:"netOrders"`
+	OrderCR              float64          `json:"orderCr"`
+	PaidCR               float64          `json:"paidCr"`
+	NetCR                float64          `json:"netCr"`
+	EcommerceAvailable   bool             `json:"ecommerceAvailable"`
+	TrackedPurchaseUsers int              `json:"trackedPurchaseUsers"`
+	EcommerceFunnel      []EcommerceStage `json:"ecommerceFunnel"`
+}
+
+type EcommerceStage struct {
+	Key          string   `json:"key"`
+	Label        string   `json:"label"`
+	Count        int      `json:"count"`
+	Unit         string   `json:"unit"`
+	FromPrevious float64  `json:"fromPrevious"`
+	FromCreated  *float64 `json:"fromCreated,omitempty"`
 }
 
 type DailyPoint struct {

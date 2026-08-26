@@ -13,12 +13,47 @@ type Repository struct {
 func NewRepository(d *db.DB) *Repository { return &Repository{db: d} }
 
 type channelTotals struct {
-	Sessions   int
-	Users      int
-	Orders     int
-	PaidOrders int
-	NetOrders  int
-	Sampled    bool
+	Sessions             int
+	Users                int
+	Orders               int
+	PaidOrders           int
+	NetOrders            int
+	Sampled              bool
+	ProductViewUsers     int
+	AddToCartUsers       int
+	BeginCheckoutUsers   int
+	TrackedPurchaseUsers int
+	EcommerceRows        int
+}
+
+func (r *Repository) ecommerceTotals(start, end string, totals map[string]channelTotals) error {
+	q := r.db.Rebind(`SELECT channel,
+		COALESCE(SUM(product_view_users),0),
+		COALESCE(SUM(add_to_cart_users),0),
+		COALESCE(SUM(begin_checkout_users),0),
+		COALESCE(SUM(tracked_purchase_users),0), COUNT(*)
+		FROM analytics_ecommerce_daily WHERE day >= ? AND day <= ? GROUP BY channel`)
+	rows, err := r.db.Query(q, start, end)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var channel string
+		var productViews, addToCarts, beginCheckouts, purchases, rowCount int
+		if err := rows.Scan(&channel, &productViews, &addToCarts,
+			&beginCheckouts, &purchases, &rowCount); err != nil {
+			return err
+		}
+		t := totals[channel]
+		t.ProductViewUsers = productViews
+		t.AddToCartUsers = addToCarts
+		t.BeginCheckoutUsers = beginCheckouts
+		t.TrackedPurchaseUsers = purchases
+		t.EcommerceRows = rowCount
+		totals[channel] = t
+	}
+	return rows.Err()
 }
 
 type dailyValues struct {

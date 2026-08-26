@@ -86,3 +86,31 @@ func TestFetchSplitsLongRangeIntoWeeklyRequests(t *testing.T) {
 		}
 	}
 }
+
+func TestFetchEcommerceParsesDailyUsers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		want := "ym:ec2:ecomUsersProductDetailsView,ym:ec2:ecomUsersAddToCart,ym:ec2:ecomUsersBeginCheckout,ym:ec2:ecomPayingUsers"
+		if q.Get("metrics") != want || q.Get("dimensions") != "ym:ec2:date" {
+			t.Fatalf("unexpected query: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{
+			"data":[{"dimensions":[{"name":"2026-08-10"}],"metrics":[2340,1761,629,104]}],
+			"sampled":false,"sample_share":1
+		}`))
+	}))
+	defer server.Close()
+
+	client := New("84", "secret")
+	client.endpoint = server.URL
+	items, err := client.FetchEcommerce(context.Background(),
+		time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].ProductViewUsers != 2340 || items[0].AddToCartUsers != 1761 ||
+		items[0].BeginCheckoutUsers != 629 || items[0].TrackedPurchaseUsers != 104 {
+		t.Fatalf("unexpected items: %+v", items)
+	}
+}
