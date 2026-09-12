@@ -184,15 +184,11 @@ export default function App() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
       <header className="mb-5">
-        <h1 className="text-2xl font-bold text-ink">CLEVER Dashboard</h1>
-        <p className="text-sm text-slate-500">
-          Продажи, трафик и конверсия CleverWear.ru
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">CLEVER DASHBOARD</h1>
+          <UploadCard onImported={onImported} />
+        </div>
       </header>
-
-      <div className="mb-4">
-        <UploadCard onImported={onImported} />
-      </div>
 
       <div className="mb-4 flex gap-1 border-b border-slate-200">
         {(

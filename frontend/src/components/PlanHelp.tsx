@@ -1,54 +1,29 @@
 import { useState } from "react";
 
-// PlanHelp — сворачиваемая подсказка «Как пользоваться» для вкладки «Цель».
 export default function PlanHelp() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="text-sm">
+    <div className="relative text-sm">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-brand transition hover:bg-brand/5"
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-brand transition hover:bg-indigo-50"
       >
-        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">
-          ?
-        </span>
-        Как пользоваться
+        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">?</span>
+        Как считается
       </button>
 
       {open && (
-        <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-4 text-slate-600 ring-1 ring-slate-200">
-          <p>
-            Вкладка считает, <strong>сколько нужно трафика</strong>, чтобы выполнить план
-            продаж (NET — выкупленная выручка) при текущей конверсии, и показывает,
-            успеваете ли вы.
-          </p>
-          <ol className="list-decimal space-y-1.5 pl-5">
-            <li>
-              Выберите <strong>год</strong> и в таблице заполните по месяцам{" "}
-              <strong>план NET</strong> (всего / сайт / приложение) и{" "}
-              <strong>трафик</strong> (визиты сайт / приложение). Нажмите{" "}
-              <strong>«Сохранить»</strong>.
-            </li>
-            <li>
-              Выберите <strong>месяц для анализа</strong> — в блоке «Достижение плана»
-              появятся факт, разрыв до плана и <strong>нужный трафик</strong> (всего, в
-              день и сколько в день нужно, чтобы догнать).
-            </li>
-            <li>
-              В блоке <strong>«What-if»</strong> покрутите рычаги (визиты, CR, чек,
-              выкупаемость) — прогноз сразу покажет, добиваете ли план.
-            </li>
-          </ol>
-          <p className="text-xs text-slate-500">
-            Логика: <strong>NET = Визиты × CR × AOV × Выкупаемость</strong>. Отсюда нужный
-            трафик = План ÷ (CR × AOV × R). «—» или «введите трафик» означает, что трафик
-            не заполнен или ещё нет заказов за месяц. При настроенной интеграции трафик
-            загружается из Яндекс Метрики и AppMetrica автоматически; ручной ввод остаётся
-            резервным источником для месяцев без автоматических данных.
-          </p>
+        <div className="absolute right-0 z-20 mt-2 w-[min(32rem,calc(100vw-2rem))] rounded-xl bg-white p-4 text-slate-600 ring-1 ring-slate-200">
+          <p className="font-medium text-ink">Вы задаёте только общую цель NET.</p>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-xs leading-relaxed">
+            <li>Сайт и приложение получают долю по фактической выручке последних доступных 30 дней перед месяцем.</li>
+            <li>Факт NET — чистый выкуп: выкупленная выручка за вычетом возвратов.</li>
+            <li>Трафик и CR приходят из Яндекс Метрики и AppMetrica, AOV — из заказов Битрикса.</li>
+            <li>Прогноз учитывает ожидаемый G2N по зрелой истории и текущий дневной темп.</li>
+          </ul>
         </div>
       )}
     </div>

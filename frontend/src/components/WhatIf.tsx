@@ -1,116 +1,94 @@
 import { useEffect, useState } from "react";
-import type { ChannelGoal } from "../utils/planCalc";
-import { forecastNet, type ChannelMetrics } from "../utils/planCalc";
+import type { GoalProgress } from "../utils/planCalc";
+import { forecastNet } from "../utils/planCalc";
 import { pct, rub } from "../utils/format";
 
 interface Props {
-  goals: ChannelGoal[];
+  progress: GoalProgress;
 }
 
 type LeverState = {
-  visits: string;
+  sessions: string;
   cr: string;
   aov: string;
-  r: string;
+  g2n: string;
 };
 
-function parseNum(s: string): number {
-  const n = parseFloat(s.replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
+function parseNumber(value: string): number {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
-function metricsFromLevers(levers: LeverState): ChannelMetrics {
-  const visits = parseNum(levers.visits);
-  const cr = parseNum(levers.cr) / 100;
-  const aov = parseNum(levers.aov);
-  const r = parseNum(levers.r) / 100;
-  const orders = visits * cr;
-  const revenue = orders * aov;
-  const netRevenue = revenue * r;
-  return { visits, orders, revenue, netRevenue, cr, aov, r };
-}
-
-function WhatIfChannel({ goal }: { goal: ChannelGoal }) {
-  const [levers, setLevers] = useState<LeverState>({
-    visits: String(goal.factVisits),
-    cr: String((goal.metrics.cr * 100).toFixed(2)),
-    aov: String(Math.round(goal.metrics.aov)),
-    r: String((goal.metrics.r * 100).toFixed(1)),
-  });
+export default function WhatIf({ progress }: Props) {
+  const [open, setOpen] = useState(false);
+  const [levers, setLevers] = useState<LeverState>({ sessions: "", cr: "", aov: "", g2n: "" });
 
   useEffect(() => {
     setLevers({
-      visits: String(goal.factVisits),
-      cr: String((goal.metrics.cr * 100).toFixed(2)),
-      aov: String(Math.round(goal.metrics.aov)),
-      r: String((goal.metrics.r * 100).toFixed(1)),
+      sessions: String(progress.driver.sessions),
+      cr: String((progress.driver.netCr * 100).toFixed(2)),
+      aov: String(Math.round(progress.driver.aov)),
+      g2n: String((progress.driver.g2n * 100).toFixed(1)),
     });
-  }, [goal]);
+  }, [progress.driver]);
 
-  const m = metricsFromLevers(levers);
-  const forecast = Math.round(forecastNet(m));
-  const plan = goal.planTarget;
-  const diff = forecast - plan;
-  const onTrack = diff >= 0;
-
-  const fields: { key: keyof LeverState; label: string; hint: string }[] = [
-    { key: "visits", label: "Визиты", hint: "за месяц" },
-    { key: "cr", label: "CR, %", hint: "заказы / визиты" },
-    { key: "aov", label: "AOV, ₽", hint: "средний чек" },
-    { key: "r", label: "R, %", hint: "выкупаемость" },
-  ];
+  const sessions = parseNumber(levers.sessions);
+  const cr = parseNumber(levers.cr) / 100;
+  const aov = parseNumber(levers.aov);
+  const g2n = parseNumber(levers.g2n) / 100;
+  const forecast = Math.round(forecastNet(sessions, cr, aov, g2n));
+  const difference = forecast - progress.target;
 
   return (
-    <div className="rounded-lg bg-white p-4 ring-1 ring-slate-100">
-      <h4 className="mb-3 text-sm font-semibold text-ink">{goal.label}</h4>
-      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {fields.map(({ key, label, hint }) => (
-          <label key={key} className="block">
-            <span className="text-xs text-slate-500">{label}</span>
-            <input
-              type="number"
-              min={0}
-              step={key === "cr" || key === "r" ? 0.01 : 1}
-              value={levers[key]}
-              onChange={(e) => setLevers((s) => ({ ...s, [key]: e.target.value }))}
-              className="mt-0.5 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            />
-            <span className="text-[10px] text-slate-400">{hint}</span>
-          </label>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-        <span>
-          Прогноз NET: <strong>{rub(forecast)}</strong>
-        </span>
-        <span className="text-slate-500">План: {rub(plan)}</span>
-        {plan > 0 && (
-          <span className={onTrack ? "text-emerald-600" : "text-rose-600"}>
-            {onTrack ? "добиваем" : "не добиваем"} на {rub(Math.abs(diff))}
-          </span>
-        )}
-        {m.visits > 0 && (
-          <span className="text-xs text-slate-400">
-            CR {pct(m.cr * 100)} · AOV {rub(Math.round(m.aov))} · R {pct(m.r * 100)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+    <section className="rounded-2xl bg-white ring-1 ring-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-7"
+      >
+        <div>
+          <h2 className="font-semibold text-ink">Сценарий «что если»</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Проверьте, какой NET дадут другие значения трафика и конверсии.</p>
+        </div>
+        <span className={`text-lg text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span>
+      </button>
 
-export default function WhatIf({ goals }: Props) {
-  return (
-    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <h2 className="mb-1 text-base font-semibold text-ink">What-if: рычаги</h2>
-      <p className="mb-4 text-xs text-slate-500">
-        NET = визиты × CR × AOV × R. Измените рычаги — увидите прогноз относительно плана.
-      </p>
-      <div className="space-y-4">
-        {goals.map((g) => (
-          <WhatIfChannel key={g.channel} goal={g} />
-        ))}
-      </div>
-    </div>
+      {open && (
+        <div className="border-t border-slate-100 px-5 py-5 sm:px-7">
+          <div className="grid gap-4 sm:grid-cols-4">
+            {([
+              ["sessions", "Визиты / сессии", "за месяц"],
+              ["cr", "CR в заказ, %", "неотменённые заказы / трафик"],
+              ["aov", "AOV, ₽", "средний чек"],
+              ["g2n", "G2N, %", "доля чистого выкупа"],
+            ] as Array<[keyof LeverState, string, string]>).map(([key, label, hint]) => (
+              <label key={key}>
+                <span className="text-xs font-medium text-slate-600">{label}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={key === "cr" || key === "g2n" ? 0.1 : 1}
+                  value={levers[key]}
+                  onChange={(event) => setLevers((current) => ({ ...current, [key]: event.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none transition focus:border-brand focus:ring-2 focus:ring-indigo-100"
+                />
+                <span className="mt-1 block text-[11px] text-slate-400">{hint}</span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-2 border-t border-slate-100 pt-4">
+            <span className="text-sm text-slate-500">Прогноз NET</span>
+            <strong className="text-2xl tabular-nums text-ink">{rub(forecast)}</strong>
+            {progress.target > 0 && (
+              <span className={difference >= 0 ? "text-sm text-emerald-600" : "text-sm text-rose-600"}>
+                {difference >= 0 ? `выше цели на ${rub(difference)}` : `ниже цели на ${rub(Math.abs(difference))}`}
+              </span>
+            )}
+            <span className="text-xs text-slate-400">CR {pct(cr * 100)} · G2N {pct(g2n * 100)}</span>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
