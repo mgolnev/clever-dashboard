@@ -3,6 +3,7 @@ package ingestion
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +22,31 @@ func TestParseItems(t *testing.T) {
 	}
 	if items[0].Category != "Футболка" || items[0].Gender != "Мужской" {
 		t.Errorf("атрибуты товара: %+v", items[0])
+	}
+}
+
+func TestStreamHTMLYieldsRowsIncrementally(t *testing.T) {
+	htmlFile := `<html><body><table><tr><th>Номер заказа</th><th>Позиции</th></tr>` +
+		`<tr><td>№1</td><td>[10] CLEVER Носки женские 25 (1 шт)</td></tr>` +
+		`<tr><td>№2</td><td>текст<br>[20] CLEVER Майка мужская M (2 шт)</td></tr>` +
+		`</table><table><tr><td>лишняя таблица</td></tr></table></body></html>`
+	var numbers []string
+	rows, err := Stream(strings.NewReader(htmlFile), func(record Record) error {
+		numbers = append(numbers, record.get(hNumber))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows != 2 || strings.Join(numbers, ",") != "№1,№2" {
+		t.Fatalf("rows=%d numbers=%q", rows, numbers)
+	}
+}
+
+func TestStreamRejectsNativeXLSX(t *testing.T) {
+	_, err := Stream(strings.NewReader("PK\x03\x04fake"), func(Record) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), "XLSX") {
+		t.Fatalf("expected XLSX error, got %v", err)
 	}
 }
 

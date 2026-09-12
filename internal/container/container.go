@@ -10,6 +10,7 @@ import (
 	"github.com/clever/clever-dashboard/internal/services/acquisition"
 	"github.com/clever/clever-dashboard/internal/services/ecomsync"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
+	"github.com/clever/clever-dashboard/internal/services/importupload"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
 	"github.com/clever/clever-dashboard/internal/services/orders"
@@ -22,6 +23,7 @@ type Container struct {
 	Cfg           config.Config
 	DB            *db.DB
 	Orders        *orders.Service
+	ImportUploads *importupload.Service
 	Metrics       *metrics.Service
 	Funnel        *funnel.Service
 	Logistics     *logistics.Service
@@ -42,6 +44,7 @@ func New(cfg config.Config) (*Container, error) {
 	}
 
 	ordersSvc := orders.NewService(orders.NewRepository(database))
+	importUploadSvc := importupload.New(cfg.ImportTempDir)
 	metricsSvc := metrics.NewService(metrics.NewRepository(database))
 	funnelSvc := funnel.NewService(funnel.NewRepository(database))
 	logisticsSvc := logistics.NewService(
@@ -75,6 +78,7 @@ func New(cfg config.Config) (*Container, error) {
 		Cfg:           cfg,
 		DB:            database,
 		Orders:        ordersSvc,
+		ImportUploads: importUploadSvc,
 		Metrics:       metricsSvc,
 		Funnel:        funnelSvc,
 		Logistics:     logisticsSvc,

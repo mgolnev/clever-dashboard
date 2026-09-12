@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { api } from "../api";
+import { api, type ImportProgress } from "../api";
 import type { ImportResult } from "../types";
 import { num } from "../utils/format";
 
@@ -12,25 +12,29 @@ export default function UploadCard({ onImported }: Props) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
 
   async function upload(file: File) {
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const res = await api.importFile(file);
+      const res = await api.importFile(file, setProgress);
       setResult(res);
       onImported();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка загрузки");
     } finally {
       setBusy(false);
+      setProgress(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   const label = busy
-    ? "Загрузка…"
+    ? progress?.phase === "uploading"
+      ? `Загрузка ${progress.percent}%`
+      : "Обработка…"
     : error
       ? "Ошибка загрузки — повторить"
       : result
@@ -42,7 +46,7 @@ export default function UploadCard({ onImported }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept=".xls,.xlsx,.csv,.html,.htm"
+        accept=".xls,.csv,.html,.htm"
         disabled={busy}
         onChange={(e) => {
           const file = e.target.files?.[0];

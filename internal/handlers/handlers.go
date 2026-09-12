@@ -3,7 +3,7 @@
 package handlers
 
 import (
-	"io"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +29,10 @@ func (h *Handler) Register(app *fiber.App) {
 	api := app.Group("/api")
 	api.Get("/health", h.health)
 	api.Post("/import", h.importFile)
+	api.Post("/import/uploads", h.createImportUpload)
+	api.Put("/import/uploads/:id/chunks/:index", h.uploadImportChunk)
+	api.Post("/import/uploads/:id/complete", h.completeImportUpload)
+	api.Delete("/import/uploads/:id", h.deleteImportUpload)
 	api.Get("/import/local", h.localFiles)
 	api.Post("/import/local", h.importLocalFile)
 	api.Get("/bounds", h.bounds)
@@ -66,15 +70,59 @@ func (h *Handler) importFile(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "не удалось открыть файл")
 	}
 	defer f.Close()
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "ошибка чтения файла")
-	}
-	res, err := h.c.Orders.ImportFile(fh.Filename, data)
+	res, err := h.c.Orders.Import(fh.Filename, f)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
 	return c.JSON(res)
+}
+
+// createImportUpload создаёт сессию. Клиент получает безопасный размер части,
+// который проходит через ограничения внешнего reverse proxy.
+func (h *Handler) createImportUpload(c *fiber.Ctx) error {
+	var req struct {
+		Filename string `json:"filename"`
+		Size     int64  `json:"size"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "неверное тело запроса")
+	}
+	session, err := h.c.ImportUploads.Create(req.Filename, req.Size)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.Status(fiber.StatusCreated).JSON(session)
+}
+
+func (h *Handler) uploadImportChunk(c *fiber.Ctx) error {
+	index, err := strconv.Atoi(c.Params("index"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "неверный номер части")
+	}
+	if err := h.c.ImportUploads.SaveChunk(c.Params("id"), index, bytes.NewReader(c.Body())); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *Handler) completeImportUpload(c *fiber.Ctx) error {
+	upload, err := h.c.ImportUploads.Open(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	defer upload.Close()
+	result, err := h.c.Orders.Import(upload.Filename, upload.Reader())
+	if err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) deleteImportUpload(c *fiber.Ctx) error {
+	if err := h.c.ImportUploads.Delete(c.Params("id")); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // localFiles возвращает список доступных для импорта файлов в папке данных (data/ или /data).
@@ -117,12 +165,13 @@ func (h *Handler) importLocalFile(c *fiber.Ctx) error {
 	dir := filepath.Dir(h.c.Cfg.DBDSN)
 	fullPath := filepath.Join(dir, filename)
 
-	data, err := os.ReadFile(fullPath)
+	file, err := os.Open(fullPath)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "не удалось открыть файл: "+err.Error())
 	}
+	defer file.Close()
 
-	res, err := h.c.Orders.ImportFile(filename, data)
+	res, err := h.c.Orders.Import(filename, file)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}

@@ -37,6 +37,7 @@
 | `DB_DRIVER` | `sqlite` или `postgres` | `sqlite` |
 | `DB_DSN` | Путь к файлу SQLite или DSN Postgres | `/data/clever.db` |
 | `STATIC_DIR` | Каталог собранного фронта | `/app/web` |
+| `IMPORT_TEMP_DIR` | Временные части больших импортов | рядом с SQLite (`/data/.import-uploads`) |
 | `LOGISTICS_PILOT_CITIES` | Города пилота (через запятую) | — |
 | `LOGISTICS_PILOT_START` | Дата старта пилота `YYYY-MM-DD` | — |
 | `ANALYTICS_SYNC_ENABLED` | Включить фоновую загрузку трафика | `false` |
@@ -71,7 +72,9 @@ Amvera собирает наш `Dockerfile` сама; конфиг — `amvera.y
 4. Переменные окружения (опционально) — в **Настройки → Переменные**:
    `LOGISTICS_PILOT_CITIES`, `LOGISTICS_PILOT_START`. Менять `DB_DSN` не нужно —
    дефолт `/data/clever.db` уже указывает в постоянное хранилище.
-5. После старта откройте домен и загрузите выгрузку Битрикса через UI.
+5. После старта откройте домен и загрузите выгрузку Битрикса через UI. Файлы
+   больше 4 МБ автоматически передаются частями, включая выгрузки больше лимита
+   одного запроса Amvera.
 
 Настройка ключей Метрики/AppMetrica и проверочные запросы описаны в
 [отдельной инструкции](yandex-analytics-setup.md).

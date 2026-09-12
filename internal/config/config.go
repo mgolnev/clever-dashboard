@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ type Config struct {
 	// существует, backend отдаёт SPA с этого пути (single-binary деплой). В dev
 	// пусто — фронт обслуживает Vite на :3000 с прокси на API.
 	StaticDir string
+	// ImportTempDir — временное хранилище частей больших файлов между HTTP-запросами.
+	ImportTempDir string
 	// Analytics — автоматическая загрузка обезличенного трафика из Яндекс
 	// Метрики и AppMetrica. Токены используются только backend-процессом.
 	AnalyticsSyncEnabled  bool
@@ -46,6 +49,14 @@ func Load() Config {
 			dsn = "data/clever.db"
 		}
 	}
+	importTempDir := strings.TrimSpace(os.Getenv("IMPORT_TEMP_DIR"))
+	if importTempDir == "" {
+		if driver == "sqlite" {
+			importTempDir = filepath.Join(filepath.Dir(dsn), ".import-uploads")
+		} else {
+			importTempDir = filepath.Join(os.TempDir(), "clever-dashboard-imports")
+		}
+	}
 	return Config{
 		Port:                  getenv("PORT", "8080"),
 		DBDriver:              driver,
@@ -53,6 +64,7 @@ func Load() Config {
 		LogisticsPilotCities:  splitEnvList(os.Getenv("LOGISTICS_PILOT_CITIES")),
 		LogisticsPilotStart:   strings.TrimSpace(os.Getenv("LOGISTICS_PILOT_START")),
 		StaticDir:             strings.TrimSpace(os.Getenv("STATIC_DIR")),
+		ImportTempDir:         importTempDir,
 		AnalyticsSyncEnabled:  getenvBool("ANALYTICS_SYNC_ENABLED", false),
 		AnalyticsSyncInterval: getenvDuration("ANALYTICS_SYNC_INTERVAL", 6*time.Hour),
 		AnalyticsLookbackDays: getenvInt("ANALYTICS_SYNC_LOOKBACK_DAYS", 7),

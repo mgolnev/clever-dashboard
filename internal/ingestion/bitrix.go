@@ -41,43 +41,53 @@ var positionRe = regexp.MustCompile(`\[(\d+)\]\s*(.*?)\s*\((\d+)\s*шт\)`)
 func MapOrders(records []Record) []model.Order {
 	orders := make([]model.Order, 0, len(records))
 	for _, rec := range records {
-		num := rec.get(hNumber)
-		if num == "" {
+		o, ok := MapOrder(rec)
+		if !ok {
 			continue
 		}
-		canceled := normalize.Bool(rec.get(hCanceled))
-		statusRaw := rec.get(hStatus)
-		region, city := normalize.Location(rec.get(hLocation))
-
-		o := model.Order{
-			OrderNumber:     num,
-			CreatedAt:       normalize.Time(rec.get(hCreatedAt)),
-			UpdatedAt:       normalize.Time(rec.get(hUpdatedAt)),
-			Customer:        rec.get(hCustomer),
-			Email:           rec.get(hEmail),
-			Phone:           rec.get(hPhone),
-			TotalAmount:     normalize.Money(rec.get(hTotal)),
-			RefundAmount:    refundAmount(statusRaw, normalize.Money(rec.get(hTotal)), rec.get(hPayments)),
-			DeliveryCost:    normalize.Money(rec.get(hDeliveryC)),
-			StatusRaw:       statusRaw,
-			StatusStage:     normalize.StatusStage(statusRaw, canceled),
-			IsPaid:          normalize.Bool(rec.get(hPaid)),
-			IsCanceled:      canceled,
-			PaymentSystem:   cleanDict(rec.get(hPayment)),
-			DeliveryService: cleanDict(rec.get(hDelivery)),
-			Channel:         channel(rec.get(hFromApp)),
-			Coupon:          cleanDict(rec.get(hCoupon)),
-			Region:          region,
-			City:            city,
-			LocationRaw:     rec.get(hLocation),
-			HasProblem:      normalize.Bool(rec.get(hProblem)),
-			ProblemDesc:     rec.get(hProblemD),
-			CancelReason:    rec.get(hCancelR),
-		}
-		o.Items = parseItems(rec.get(hPositions), rec.get(hPrices))
 		orders = append(orders, o)
 	}
 	return orders
+}
+
+// MapOrder преобразует одну строку выгрузки в заказ. Второе значение false
+// означает служебную/пустую строку без номера заказа.
+func MapOrder(rec Record) (model.Order, bool) {
+	num := rec.get(hNumber)
+	if num == "" {
+		return model.Order{}, false
+	}
+	canceled := normalize.Bool(rec.get(hCanceled))
+	statusRaw := rec.get(hStatus)
+	total := normalize.Money(rec.get(hTotal))
+	region, city := normalize.Location(rec.get(hLocation))
+	o := model.Order{
+		OrderNumber:     num,
+		CreatedAt:       normalize.Time(rec.get(hCreatedAt)),
+		UpdatedAt:       normalize.Time(rec.get(hUpdatedAt)),
+		Customer:        rec.get(hCustomer),
+		Email:           rec.get(hEmail),
+		Phone:           rec.get(hPhone),
+		TotalAmount:     total,
+		RefundAmount:    refundAmount(statusRaw, total, rec.get(hPayments)),
+		DeliveryCost:    normalize.Money(rec.get(hDeliveryC)),
+		StatusRaw:       statusRaw,
+		StatusStage:     normalize.StatusStage(statusRaw, canceled),
+		IsPaid:          normalize.Bool(rec.get(hPaid)),
+		IsCanceled:      canceled,
+		PaymentSystem:   cleanDict(rec.get(hPayment)),
+		DeliveryService: cleanDict(rec.get(hDelivery)),
+		Channel:         channel(rec.get(hFromApp)),
+		Coupon:          cleanDict(rec.get(hCoupon)),
+		Region:          region,
+		City:            city,
+		LocationRaw:     rec.get(hLocation),
+		HasProblem:      normalize.Bool(rec.get(hProblem)),
+		ProblemDesc:     rec.get(hProblemD),
+		CancelReason:    rec.get(hCancelR),
+	}
+	o.Items = parseItems(rec.get(hPositions), rec.get(hPrices))
+	return o, true
 }
 
 var paymentAmountRe = regexp.MustCompile(`\d[\d\s\x{00a0}]*\s*руб`)

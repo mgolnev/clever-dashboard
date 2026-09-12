@@ -26,6 +26,20 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type ImportProgress =
+  | { phase: "uploading"; percent: number }
+  | { phase: "processing"; percent: 100 };
+
+interface ImportUploadSession {
+  uploadId: string;
+  filename: string;
+  size: number;
+  chunkSize: number;
+  chunksTotal: number;
+}
+
+const directImportLimit = 4 * 1024 * 1024;
+
 // Filters — сквозные фильтры дашборда (мультивыбор по каждому полю).
 export interface Filters {
   city: string[];
@@ -111,12 +125,46 @@ export const api = {
       `/api/dynamics?${query(start, end, f, { granularity })}&groupBy=${encodeURIComponent(groupBy)}`
     ).then((r) => handle<LogisticsDynamics>(r)),
 
-  importFile: (file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    return fetch("/api/import", { method: "POST", body: fd }).then((r) =>
-      handle<ImportResult>(r)
-    );
+  importFile: async (file: File, onProgress?: (progress: ImportProgress) => void) => {
+    if (file.size <= directImportLimit) {
+      const fd = new FormData();
+      fd.append("file", file);
+      onProgress?.({ phase: "processing", percent: 100 });
+      return fetch("/api/import", { method: "POST", body: fd }).then((r) =>
+        handle<ImportResult>(r)
+      );
+    }
+
+    onProgress?.({ phase: "uploading", percent: 0 });
+    const session = await fetch("/api/import/uploads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name, size: file.size }),
+    }).then((r) => handle<ImportUploadSession>(r));
+
+    try {
+      for (let index = 0; index < session.chunksTotal; index += 1) {
+        const start = index * session.chunkSize;
+        const end = Math.min(start + session.chunkSize, file.size);
+        const response = await fetch(`/api/import/uploads/${session.uploadId}/chunks/${index}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: file.slice(start, end),
+        });
+        if (!response.ok) await handle<never>(response);
+        onProgress?.({
+          phase: "uploading",
+          percent: Math.round((end / file.size) * 100),
+        });
+      }
+      onProgress?.({ phase: "processing", percent: 100 });
+      return await fetch(`/api/import/uploads/${session.uploadId}/complete`, {
+        method: "POST",
+      }).then((r) => handle<ImportResult>(r));
+    } catch (error) {
+      await fetch(`/api/import/uploads/${session.uploadId}`, { method: "DELETE" }).catch(() => undefined);
+      throw error;
+    }
   },
 
   getPlan: (year: number) =>

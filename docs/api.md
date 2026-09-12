@@ -12,7 +12,8 @@
 
 ## `POST /api/import`
 
-Загрузка файла выгрузки Битрикса. `multipart/form-data`, поле `file`.
+Прямая загрузка небольшой выгрузки Битрикса. `multipart/form-data`, поле `file`.
+Для файлов больше 4 МБ штатный frontend использует порционную загрузку ниже.
 
 ```bash
 curl -F "file=@sale_order.xls" localhost:8080/api/import
@@ -31,6 +32,38 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
   "periodEnd": "2026-05-28T18:34:24Z"
 }
 ```
+
+## Порционная загрузка больших файлов
+
+`POST /api/import/uploads` создаёт временную сессию:
+
+```json
+{ "filename": "sale_order.xls", "size": 13631488 }
+```
+
+Ответ `201 Created` задаёт размер и количество частей:
+
+```json
+{
+  "uploadId": "38d10da8c29b1c7ab9827becc52b6361",
+  "filename": "sale_order.xls",
+  "size": 13631488,
+  "chunkSize": 4194304,
+  "chunksTotal": 4
+}
+```
+
+Каждая часть передаётся как `application/octet-stream`:
+
+```text
+PUT /api/import/uploads/{uploadId}/chunks/{index}
+```
+
+Индексы начинаются с нуля. После всех частей
+`POST /api/import/uploads/{uploadId}/complete` запускает потоковый импорт и
+возвращает обычный `ImportResult`. `DELETE /api/import/uploads/{uploadId}`
+отменяет незавершённую загрузку. Общий лимит файла — 512 МБ; временные сессии
+автоматически очищаются через 24 часа.
 
 ## `GET /api/bounds`
 
