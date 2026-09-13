@@ -27,11 +27,21 @@ curl -F "file=@sale_order.xls" localhost:8080/api/import
   "filename": "sale_order.xls",
   "rowsTotal": 1328,
   "ordersImported": 1328,
+  "ordersAdded": 1200,
+  "ordersUpdated": 128,
+  "ordersSkipped": 0,
   "itemsImported": 4823,
   "periodStart": "2025-09-01T12:09:01Z",
-  "periodEnd": "2026-05-28T18:34:24Z"
+  "periodEnd": "2026-05-28T18:34:24Z",
+  "ordersCleared": 0
 }
 ```
+
+Импорт накопительный: новые номера заказов добавляются, совпавшие обновляются
+вместе с позициями, а отсутствующие в файле заказы сохраняются. Более старый
+снимок совпавшего заказа пропускается по `updated_at`. `ordersImported` равен
+сумме `ordersAdded + ordersUpdated`; `ordersSkipped` содержит число устаревших
+снимков. `ordersCleared` оставлен для совместимости и всегда равен нулю.
 
 ## Порционная загрузка больших файлов
 
@@ -72,6 +82,51 @@ PUT /api/import/uploads/{uploadId}/chunks/{index}
 ```json
 { "min": "2025-09-01", "max": "2026-05-28" }
 ```
+
+## `GET /api/goal?year=YYYY&month=M`
+
+Компактная read-модель вкладки «Цель». Если параметры не заданы, используются
+текущие год и месяц. Ответ объединяет годовой план, границы заказов, фактические
+итоги выбранного месяца, историческую базу до него и статус источников трафика.
+
+`history` — до 30 последних доступных дней, заканчивающихся не позднее дня перед
+началом выбранного месяца. Если более ранних заказов нет, поле равно `null`.
+
+```jsonc
+{
+  "year": 2026,
+  "month": 9,
+  "plan": { "year": 2026, "months": [/* 12 месяцев */] },
+  "bounds": { "min": "2025-09-01", "max": "2026-09-11" },
+  "current": {
+    "start": "2026-09-01",
+    "end": "2026-09-30",
+    "channels": [
+      { "channel": "all", "revenue": 1200000, "netRevenue": 780000,
+        "aov": 4200, "sessions": 18400, "netCr": 1.31 },
+      { "channel": "site", "revenue": 700000, "netRevenue": 450000,
+        "aov": 4100, "sessions": 12000, "netCr": 1.25 },
+      { "channel": "app", "revenue": 500000, "netRevenue": 330000,
+        "aov": 4400, "sessions": 6400, "netCr": 1.41 }
+    ]
+  },
+  "history": {
+    "start": "2026-08-02",
+    "end": "2026-08-31",
+    "channels": [/* all, site, app */]
+  },
+  "analyticsStatus": { "enabled": true, "sources": [/* metrika, appmetrica */] }
+}
+```
+
+- `revenue` — сумма неотменённых заказов; используется для AOV, прогноза и
+  распределения плана по каналам.
+- `netRevenue` — валовая выручка выкупленных заказов минус полные и частичные
+  возвраты, по тем же правилам, что `metrics.current.kpi.stages.redeemedNet.revenue`.
+- `netCr` — неотменённые заказы / сессии соответствующего канала, %.
+
+Сохранение цели остаётся в `PUT /api/plan`. Архитектурное решение —
+[ADR-0008](adr/0008-compact-goal-read-model.md).
 
 ## `GET /api/cities` · `GET /api/regions` · `GET /api/channels` · `GET /api/payments` · `GET /api/deliveries` · `GET /api/coupons`
 

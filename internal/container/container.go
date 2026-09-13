@@ -10,6 +10,7 @@ import (
 	"github.com/clever/clever-dashboard/internal/services/acquisition"
 	"github.com/clever/clever-dashboard/internal/services/ecomsync"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
+	"github.com/clever/clever-dashboard/internal/services/goal"
 	"github.com/clever/clever-dashboard/internal/services/importupload"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
@@ -26,6 +27,7 @@ type Container struct {
 	ImportUploads *importupload.Service
 	Metrics       *metrics.Service
 	Funnel        *funnel.Service
+	Goal          *goal.Service
 	Logistics     *logistics.Service
 	Plan          *plan.Service
 	Traffic       *traffic.Service
@@ -57,6 +59,13 @@ func New(cfg config.Config) (*Container, error) {
 	acquisitionSvc := acquisition.NewService(acquisition.NewRepository(database))
 	metrikaClient := metrika.New(cfg.MetrikaCounterID, cfg.MetrikaOAuthToken, cfg.AnalyticsTimezone)
 	appMetricaClient := appmetrica.New(cfg.AppMetricaAppID, cfg.AppMetricaOAuthToken)
+	goalSvc := goal.NewService(goal.NewRepository(database), goal.Options{
+		AnalyticsEnabled: cfg.AnalyticsSyncEnabled,
+		Sources: []goal.SourceDefinition{
+			{Source: metrikaClient.Name(), Channel: metrikaClient.Channel(), Configured: metrikaClient.Configured()},
+			{Source: appMetricaClient.Name(), Channel: appMetricaClient.Channel(), Configured: appMetricaClient.Configured()},
+		},
+	})
 	trafficSyncSvc := trafficsync.NewService(
 		trafficsync.NewRepository(database),
 		[]trafficsync.Source{metrikaClient, appMetricaClient},
@@ -81,6 +90,7 @@ func New(cfg config.Config) (*Container, error) {
 		ImportUploads: importUploadSvc,
 		Metrics:       metricsSvc,
 		Funnel:        funnelSvc,
+		Goal:          goalSvc,
 		Logistics:     logisticsSvc,
 		Plan:          planSvc,
 		Traffic:       trafficSvc,

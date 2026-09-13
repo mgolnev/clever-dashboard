@@ -46,6 +46,7 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Get("/funnel", h.funnel)
 	api.Get("/logistics", h.logistics)
 	api.Get("/dynamics", h.dynamics)
+	api.Get("/goal", h.goal)
 	api.Get("/plan", h.getPlan)
 	api.Put("/plan", h.putPlan)
 	api.Get("/traffic", h.getTraffic)
@@ -59,7 +60,7 @@ func (h *Handler) health(c *fiber.Ctx) error {
 }
 
 // importFile принимает multipart-файл выгрузки Битрикса (поле "file")
-// и полностью заменяет витрину заказов содержимым файла.
+// и накопительно добавляет новые либо обновляет совпавшие заказы.
 func (h *Handler) importFile(c *fiber.Ctx) error {
 	fh, err := c.FormFile("file")
 	if err != nil {
@@ -303,6 +304,30 @@ func parseYearQuery(raw string) int {
 		return 0
 	}
 	return y
+}
+
+func parseMonthQuery(raw string) int {
+	if raw == "" {
+		return int(time.Now().Month())
+	}
+	month, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return month
+}
+
+func (h *Handler) goal(c *fiber.Ctx) error {
+	year := parseYearQuery(c.Query("year"))
+	month := parseMonthQuery(c.Query("month"))
+	if year == 0 || month == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "неверные параметры year или month")
+	}
+	report, err := h.c.Goal.Report(year, month)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
 }
 
 func (h *Handler) getPlan(c *fiber.Ctx) error {

@@ -51,10 +51,14 @@ type ImportResult struct {
 	Filename       string     `json:"filename"`
 	RowsTotal      int        `json:"rowsTotal"`
 	OrdersImported int        `json:"ordersImported"`
+	OrdersAdded    int        `json:"ordersAdded"`
+	OrdersUpdated  int        `json:"ordersUpdated"`
+	OrdersSkipped  int        `json:"ordersSkipped"`
 	ItemsImported  int        `json:"itemsImported"`
 	PeriodStart    *time.Time `json:"periodStart"`
 	PeriodEnd      *time.Time `json:"periodEnd"`
-	// OrdersCleared — сколько заказов удалено перед загрузкой нового файла.
+	// OrdersCleared сохранено для обратной совместимости; накопительный импорт
+	// никогда не удаляет заказы, отсутствующие в новом файле.
 	OrdersCleared int `json:"ordersCleared"`
 }
 

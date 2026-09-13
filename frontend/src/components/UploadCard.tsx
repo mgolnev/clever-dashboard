@@ -38,7 +38,9 @@ export default function UploadCard({ onImported }: Props) {
     : error
       ? "Ошибка загрузки — повторить"
       : result
-        ? `Загружено: ${num(result.ordersImported)} заказов`
+        ? `Добавлено ${num(result.ordersAdded)} · обновлено ${num(result.ordersUpdated)}${
+            result.ordersSkipped > 0 ? ` · пропущено ${num(result.ordersSkipped)}` : ""
+          }`
         : "Загрузить данные";
 
   return (

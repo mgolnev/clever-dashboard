@@ -24,15 +24,14 @@ func (s *Service) ImportFile(filename string, data []byte) (*model.ImportResult,
 	return s.Import(filename, bytes.NewReader(data))
 }
 
-// Import потоково парсит выгрузку и полностью заменяет витрину заказов. Заказы
-// сохраняются батчами, но одна транзакция гарантирует, что при любой ошибке в БД
-// останется предыдущая целая витрина.
+// Import потоково парсит выгрузку и накопительно обновляет витрину заказов.
+// Одна транзакция гарантирует, что при любой ошибке все изменения откатятся.
 func (s *Service) Import(filename string, reader io.Reader) (*model.ImportResult, error) {
-	replacement, err := s.repo.beginReplacement(filename)
+	merge, err := s.repo.beginMerge(filename)
 	if err != nil {
 		return nil, fmt.Errorf("начать импорт: %w", err)
 	}
-	defer replacement.Rollback()
+	defer merge.Rollback()
 
 	batch := make([]model.Order, 0, importBatchSize)
 	ordersTotal := 0
@@ -41,7 +40,7 @@ func (s *Service) Import(filename string, reader io.Reader) (*model.ImportResult
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := replacement.SaveBatch(batch); err != nil {
+		if err := merge.SaveBatch(batch); err != nil {
 			return fmt.Errorf("сохранить батч заказов: %w", err)
 		}
 		batch = batch[:0]
@@ -78,18 +77,21 @@ func (s *Service) Import(filename string, reader io.Reader) (*model.ImportResult
 		return nil, err
 	}
 	start, end := timePointers(minCreated, maxCreated)
-	if err := replacement.Complete(rowsTotal, ordersTotal, start, end); err != nil {
+	if err := merge.Complete(rowsTotal, start, end); err != nil {
 		return nil, fmt.Errorf("завершить импорт: %w", err)
 	}
 	return &model.ImportResult{
-		ImportID:       replacement.ImportID(),
+		ImportID:       merge.ImportID(),
 		Filename:       filename,
 		RowsTotal:      rowsTotal,
-		OrdersImported: ordersTotal,
-		ItemsImported:  replacement.Items(),
+		OrdersImported: merge.Added() + merge.Updated(),
+		OrdersAdded:    merge.Added(),
+		OrdersUpdated:  merge.Updated(),
+		OrdersSkipped:  merge.Skipped(),
+		ItemsImported:  merge.Items(),
 		PeriodStart:    start,
 		PeriodEnd:      end,
-		OrdersCleared:  replacement.Cleared(),
+		OrdersCleared:  0,
 	}, nil
 }
 

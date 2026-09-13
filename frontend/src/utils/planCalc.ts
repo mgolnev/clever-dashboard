@@ -1,4 +1,4 @@
-import type { AcquisitionChannel, AcquisitionReport, Bounds, KPI, NamedCount, Report } from "../types";
+import type { Bounds, GoalChannelSummary, GoalPeriodSummary } from "../types";
 
 export type PlanChannel = "all" | "site" | "app";
 
@@ -53,15 +53,6 @@ export interface GoalProgress {
   channels: ChannelProgress[];
 }
 
-export const emptyPlanFilters = {
-  city: [] as string[],
-  region: [] as string[],
-  channel: [] as string[],
-  payment: [] as string[],
-  delivery: [] as string[],
-  coupon: [] as string[],
-};
-
 function localDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -71,12 +62,6 @@ function localDate(date: Date): string {
 
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00`);
-}
-
-function addDays(value: string, days: number): string {
-  const date = parseDate(value);
-  date.setDate(date.getDate() + days);
-  return localDate(date);
 }
 
 function daysBetween(start: string, end: string): number {
@@ -89,33 +74,23 @@ export function monthRange(year: number, month: number): { start: string; end: s
   return { start: `${year}-${m}-01`, end: `${year}-${m}-${String(lastDay).padStart(2, "0")}` };
 }
 
-export function allocationRange(year: number, month: number, bounds: Bounds): { start: string; end: string } | null {
-  if (!bounds.max) return null;
-  const { start: monthStart } = monthRange(year, month);
-  const end = bounds.max < addDays(monthStart, -1) ? bounds.max : addDays(monthStart, -1);
-  if (bounds.min && end < bounds.min) return null;
-  const candidateStart = addDays(end, -29);
-  return { start: bounds.min && candidateStart < bounds.min ? bounds.min : candidateStart, end };
-}
-
-function channelRevenue(rows: NamedCount[], channel: "Сайт" | "Приложение"): number {
-  return rows.find((row) => row.name === channel)?.revenue ?? 0;
+function periodChannel(period: GoalPeriodSummary | null, channel: PlanChannel): GoalChannelSummary | undefined {
+  return period?.channels.find((item) => item.channel === channel);
 }
 
 export function buildAllocation(
-  historical: Report | null,
-  current: Report,
-  range: { start: string; end: string } | null
+  historical: GoalPeriodSummary | null,
+  current: GoalPeriodSummary
 ): AllocationBasis {
-  const historicalSite = historical ? channelRevenue(historical.current.byChannel, "Сайт") : 0;
-  const historicalApp = historical ? channelRevenue(historical.current.byChannel, "Приложение") : 0;
+  const historicalSite = periodChannel(historical, "site")?.revenue ?? 0;
+  const historicalApp = periodChannel(historical, "app")?.revenue ?? 0;
   let site = historicalSite;
   let app = historicalApp;
   let source: AllocationBasis["source"] = "history";
 
   if (site + app <= 0) {
-    site = channelRevenue(current.current.byChannel, "Сайт");
-    app = channelRevenue(current.current.byChannel, "Приложение");
+    site = periodChannel(current, "site")?.revenue ?? 0;
+    app = periodChannel(current, "app")?.revenue ?? 0;
     source = "current";
   }
   if (site + app <= 0) {
@@ -128,8 +103,8 @@ export function buildAllocation(
   return {
     siteShare: site / total,
     appShare: app / total,
-    start: range?.start ?? "",
-    end: range?.end ?? "",
+    start: historical?.start ?? "",
+    end: historical?.end ?? "",
     source,
   };
 }
@@ -138,45 +113,37 @@ function ratio(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0;
 }
 
-function channel(report: AcquisitionReport | null, key: PlanChannel): AcquisitionChannel | undefined {
-  return report?.current.channels.find((item) => item.channel === key);
-}
-
 function selectDriver(
-  currentMetrics: KPI,
-  currentAcquisition: AcquisitionReport,
-  historicalMetrics: KPI | null,
-  historicalAcquisition: AcquisitionReport | null
+  current: GoalChannelSummary,
+  historical: GoalChannelSummary | null
 ): GoalDriver {
-  const currentTraffic = channel(currentAcquisition, "all");
-  const historicalTraffic = channel(historicalAcquisition, "all");
-  const currentG2N = ratio(currentMetrics.stages.redeemedNet.revenue, currentMetrics.revenue);
-  const historicalG2N = historicalMetrics
-    ? ratio(historicalMetrics.stages.redeemedNet.revenue, historicalMetrics.revenue)
+  const currentG2N = ratio(current.netRevenue, current.revenue);
+  const historicalG2N = historical
+    ? ratio(historical.netRevenue, historical.revenue)
     : 0;
 
-  if (currentTraffic && currentTraffic.sessions > 0 && currentMetrics.aov > 0) {
+  if (current.sessions > 0 && current.aov > 0) {
     return {
-      sessions: currentTraffic.sessions,
-      netCr: currentTraffic.netCr / 100,
-      aov: currentMetrics.aov,
+      sessions: current.sessions,
+      netCr: current.netCr / 100,
+      aov: current.aov,
       g2n: historicalG2N || currentG2N,
       source: "current",
     };
   }
-  if (historicalTraffic && historicalTraffic.sessions > 0 && historicalMetrics?.aov) {
+  if (historical && historical.sessions > 0 && historical.aov > 0) {
     return {
-      sessions: historicalTraffic.sessions,
-      netCr: historicalTraffic.netCr / 100,
-      aov: historicalMetrics.aov,
+      sessions: historical.sessions,
+      netCr: historical.netCr / 100,
+      aov: historical.aov,
       g2n: historicalG2N,
       source: "history",
     };
   }
   return {
-    sessions: currentTraffic?.sessions ?? 0,
+    sessions: current.sessions,
     netCr: 0,
-    aov: currentMetrics.aov || historicalMetrics?.aov || 0,
+    aov: current.aov || historical?.aov || 0,
     g2n: historicalG2N || currentG2N,
     source: "missing",
   };
@@ -209,20 +176,16 @@ export function buildGoalProgress(args: {
   target: number;
   bounds: Bounds;
   allocation: AllocationBasis;
-  metricsAll: Report;
-  metricsSite: Report;
-  metricsApp: Report;
-  acquisition: AcquisitionReport;
-  historicalMetrics: Report | null;
-  historicalAcquisition: AcquisitionReport | null;
+  current: GoalPeriodSummary;
+  historical: GoalPeriodSummary | null;
   today?: Date;
 }): GoalProgress {
   const dates = analysisDates(args.year, args.month, args.bounds, args.today);
-  const kpi = args.metricsAll.current.kpi;
-  const historicalKpi = args.historicalMetrics?.current.kpi ?? null;
-  const driver = selectDriver(kpi, args.acquisition, historicalKpi, args.historicalAcquisition);
-  const factNet = kpi.stages.redeemedNet.revenue;
-  const projectedNet = Math.max(factNet, Math.round(kpi.revenue * driver.g2n));
+  const currentAll = periodChannel(args.current, "all")!;
+  const historicalAll = periodChannel(args.historical, "all") ?? null;
+  const driver = selectDriver(currentAll, historicalAll);
+  const factNet = currentAll.netRevenue;
+  const projectedNet = Math.max(factNet, Math.round(currentAll.revenue * driver.g2n));
   const planToDate = dates.daysInMonth > 0
     ? Math.round(args.target * dates.elapsedDays / dates.daysInMonth)
     : 0;
@@ -242,20 +205,19 @@ export function buildGoalProgress(args: {
     ? Math.ceil(requiredRevenuePerDay / revenuePerSession)
     : null;
 
-  const factTotal = args.metricsSite.current.kpi.stages.redeemedNet.revenue
-    + args.metricsApp.current.kpi.stages.redeemedNet.revenue;
+  const currentSite = periodChannel(args.current, "site")!;
+  const currentApp = periodChannel(args.current, "app")!;
+  const factTotal = currentSite.netRevenue + currentApp.netRevenue;
   const channelInputs = [
-    { key: "site" as const, label: "Сайт", share: args.allocation.siteShare, report: args.metricsSite },
-    { key: "app" as const, label: "Приложение", share: args.allocation.appShare, report: args.metricsApp },
+    { key: "site" as const, label: "Сайт", share: args.allocation.siteShare, summary: currentSite },
+    { key: "app" as const, label: "Приложение", share: args.allocation.appShare, summary: currentApp },
   ];
-  const channels = channelInputs.map(({ key, label, share, report }) => {
-    const channelKpi = report.current.kpi;
-    const channelFact = channelKpi.stages.redeemedNet.revenue;
+  const channels = channelInputs.map(({ key, label, share, summary }) => {
+    const channelFact = summary.netRevenue;
     const target = key === "site"
       ? Math.round(args.target * share)
       : args.target - Math.round(args.target * args.allocation.siteShare);
-    const projected = Math.max(channelFact, Math.round(channelKpi.revenue * driver.g2n));
-    const acquisitionChannel = channel(args.acquisition, key);
+    const projected = Math.max(channelFact, Math.round(summary.revenue * driver.g2n));
     return {
       channel: key,
       label,
@@ -264,8 +226,8 @@ export function buildGoalProgress(args: {
       projectedNet: projected,
       forecastNet: dates.elapsedDays > 0 ? Math.round(projected / dates.elapsedDays * dates.daysInMonth) : null,
       completionPct: target > 0 ? channelFact / target * 100 : 0,
-      sessions: acquisitionChannel?.sessions ?? 0,
-      netCr: acquisitionChannel?.netCr ?? 0,
+      sessions: summary.sessions,
+      netCr: summary.netCr,
       factShare: factTotal > 0 ? channelFact / factTotal : 0,
     };
   });

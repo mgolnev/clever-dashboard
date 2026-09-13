@@ -1,115 +1,66 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-import type { AcquisitionReport, AnalyticsStatus, Bounds, PlanReport, Report } from "../types";
+import type { GoalReport } from "../types";
 import {
-  allocationRange,
   allocationTargets,
   buildAllocation,
   buildGoalProgress,
-  emptyPlanFilters,
-  monthRange,
 } from "../utils/planCalc";
 
-interface GoalPlanState {
-  plan: PlanReport | null;
-  bounds: Bounds | null;
-  metricsAll: Report | null;
-  metricsSite: Report | null;
-  metricsApp: Report | null;
-  acquisition: AcquisitionReport | null;
-  historicalMetrics: Report | null;
-  historicalAcquisition: AcquisitionReport | null;
-  analyticsStatus: AnalyticsStatus | null;
-}
-
-const initialState: GoalPlanState = {
-  plan: null,
-  bounds: null,
-  metricsAll: null,
-  metricsSite: null,
-  metricsApp: null,
-  acquisition: null,
-  historicalMetrics: null,
-  historicalAcquisition: null,
-  analyticsStatus: null,
-};
-
 export function useGoalPlan(year: number, month: number) {
-  const [state, setState] = useState<GoalPlanState>(initialState);
+  const [report, setReport] = useState<GoalReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setError(null);
-    setState(initialState);
+    setReport(null);
     try {
-      const [plan, bounds, analyticsStatus] = await Promise.all([
-        api.getPlan(year),
-        api.bounds(),
-        api.analyticsStatus(),
-      ]);
-      const selected = monthRange(year, month);
-      const history = allocationRange(year, month, bounds);
-      const [metricsAll, metricsSite, metricsApp, acquisition, historicalMetrics, historicalAcquisition] = await Promise.all([
-        api.metrics(selected.start, selected.end, emptyPlanFilters),
-        api.metrics(selected.start, selected.end, { ...emptyPlanFilters, channel: ["Сайт"] }),
-        api.metrics(selected.start, selected.end, { ...emptyPlanFilters, channel: ["Приложение"] }),
-        api.acquisition(selected.start, selected.end),
-        history ? api.metrics(history.start, history.end, emptyPlanFilters) : Promise.resolve(null),
-        history ? api.acquisition(history.start, history.end) : Promise.resolve(null),
-      ]);
-      setState({
-        plan,
-        bounds,
-        metricsAll,
-        metricsSite,
-        metricsApp,
-        acquisition,
-        historicalMetrics,
-        historicalAcquisition,
-        analyticsStatus,
-      });
+      const next = await api.goal(year, month, controller.signal);
+      if (!controller.signal.aborted) setReport(next);
     } catch (caught) {
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
       setError(caught instanceof Error ? caught.message : "Ошибка загрузки цели");
     } finally {
-      setLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
   }, [year, month]);
 
   useEffect(() => {
     void load();
+    return () => {
+      const controller = requestRef.current;
+      requestRef.current = null;
+      controller?.abort();
+    };
   }, [load]);
 
   const allocation = useMemo(() => {
-    if (!state.metricsAll || !state.bounds) return null;
-    return buildAllocation(
-      state.historicalMetrics,
-      state.metricsAll,
-      allocationRange(year, month, state.bounds)
-    );
-  }, [state.metricsAll, state.historicalMetrics, state.bounds, year, month]);
+    if (!report) return null;
+    return buildAllocation(report.history, report.current);
+  }, [report]);
 
   const progress = useMemo(() => {
-    if (
-      !state.plan || !state.bounds || !state.metricsAll || !state.metricsSite
-      || !state.metricsApp || !state.acquisition || !allocation
-    ) return null;
+    if (!report || !allocation) return null;
     return buildGoalProgress({
       year,
       month,
-      target: state.plan.months[month - 1].targets.all,
-      bounds: state.bounds,
+      target: report.plan.months[month - 1]?.targets.all ?? 0,
+      bounds: report.bounds,
       allocation,
-      metricsAll: state.metricsAll,
-      metricsSite: state.metricsSite,
-      metricsApp: state.metricsApp,
-      acquisition: state.acquisition,
-      historicalMetrics: state.historicalMetrics,
-      historicalAcquisition: state.historicalAcquisition,
+      current: report.current,
+      historical: report.history,
     });
-  }, [state, allocation, year, month]);
+  }, [report, allocation, year, month]);
 
   const saveTarget = useCallback(async (total: number) => {
     if (!allocation) return;
@@ -122,7 +73,7 @@ export function useGoalPlan(year: number, month: number) {
         { month, channel: "site", netTarget: targets.site },
         { month, channel: "app", netTarget: targets.app },
       ]);
-      setState((current) => ({ ...current, plan }));
+      setReport((current) => current ? { ...current, plan } : current);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Ошибка сохранения цели");
     } finally {
@@ -131,7 +82,9 @@ export function useGoalPlan(year: number, month: number) {
   }, [allocation, year, month]);
 
   return {
-    ...state,
+    plan: report?.plan ?? null,
+    bounds: report?.bounds ?? null,
+    analyticsStatus: report?.analyticsStatus ?? null,
     allocation,
     progress,
     loading,

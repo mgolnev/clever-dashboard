@@ -215,6 +215,31 @@ export interface AnalyticsStatus {
   sources: AnalyticsSourceStatus[];
 }
 
+export interface GoalChannelSummary {
+  channel: "all" | "site" | "app";
+  revenue: number;
+  netRevenue: number;
+  aov: number;
+  sessions: number;
+  netCr: number;
+}
+
+export interface GoalPeriodSummary {
+  start: string;
+  end: string;
+  channels: GoalChannelSummary[];
+}
+
+export interface GoalReport {
+  year: number;
+  month: number;
+  plan: PlanReport;
+  bounds: Bounds;
+  current: GoalPeriodSummary;
+  history: GoalPeriodSummary | null;
+  analyticsStatus: AnalyticsStatus;
+}
+
 export interface FunnelStep {
   key: string;
   label: string;
@@ -274,6 +299,9 @@ export interface ImportResult {
   filename: string;
   rowsTotal: number;
   ordersImported: number;
+  ordersAdded: number;
+  ordersUpdated: number;
+  ordersSkipped: number;
   itemsImported: number;
   periodStart: string | null;
   periodEnd: string | null;

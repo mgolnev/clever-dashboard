@@ -4,6 +4,7 @@ import type {
   AnalyticsStatus,
   City,
   FunnelReport,
+  GoalReport,
   ImportResult,
   LogisticsDynamics,
   LogisticsReport,
@@ -72,6 +73,11 @@ function query(
 }
 
 export const api = {
+  goal: (year: number, month: number, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ year: String(year), month: String(month) });
+    return fetch(`/api/goal?${params.toString()}`, { signal }).then((r) => handle<GoalReport>(r));
+  },
+
   bounds: () => fetch("/api/bounds").then((r) => handle<Bounds>(r)),
 
   cities: () => fetch("/api/cities").then((r) => handle<City[]>(r)),

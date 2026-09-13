@@ -26,6 +26,9 @@ func (d *DB) Migrate() error {
 			source TEXT NOT NULL DEFAULT 'bitrix_file',
 			rows_total INTEGER NOT NULL DEFAULT 0,
 			orders_imported INTEGER NOT NULL DEFAULT 0,
+			orders_added INTEGER NOT NULL DEFAULT 0,
+			orders_updated INTEGER NOT NULL DEFAULT 0,
+			orders_skipped INTEGER NOT NULL DEFAULT 0,
 			items_imported INTEGER NOT NULL DEFAULT 0,
 			period_start %s,
 			period_end %s,
@@ -176,6 +179,9 @@ func (d *DB) Migrate() error {
 		"ALTER TABLE orders ADD COLUMN cancel_reason TEXT",
 		"ALTER TABLE orders ADD COLUMN coupon TEXT",
 		"ALTER TABLE orders ADD COLUMN refund_amount INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE raw_import ADD COLUMN orders_added INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE raw_import ADD COLUMN orders_updated INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE raw_import ADD COLUMN orders_skipped INTEGER NOT NULL DEFAULT 0",
 	} {
 		if _, err := d.Exec(alter); err != nil && !isDuplicateColumn(err) {
 			return fmt.Errorf("migrate alter: %w\nstmt: %s", err, alter)

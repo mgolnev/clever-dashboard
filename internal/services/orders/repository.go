@@ -18,20 +18,24 @@ type Repository struct {
 
 func NewRepository(d *db.DB) *Repository { return &Repository{db: d} }
 
-// Replacement инкапсулирует атомарную замену витрины. Транзакция остаётся
-// открытой, пока сервис потоково разбирает файл и передаёт сюда небольшие батчи.
-type Replacement struct {
-	repo      *Repository
-	tx        *sql.Tx
-	orderStmt *sql.Stmt
-	itemStmt  *sql.Stmt
-	importID  int64
-	cleared   int
-	items     int
-	closed    bool
+// Merge инкапсулирует атомарное накопительное обновление витрины. Отсутствующие
+// в файле заказы не затрагиваются, а совпавшие обновляются вместе с позициями.
+type Merge struct {
+	repo            *Repository
+	tx              *sql.Tx
+	insertOrderStmt *sql.Stmt
+	updateOrderStmt *sql.Stmt
+	deleteItemsStmt *sql.Stmt
+	insertItemStmt  *sql.Stmt
+	importID        int64
+	added           int
+	updated         int
+	skipped         int
+	items           int
+	closed          bool
 }
 
-func (r *Repository) beginReplacement(filename string) (_ *Replacement, err error) {
+func (r *Repository) beginMerge(filename string) (_ *Merge, err error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
@@ -42,41 +46,50 @@ func (r *Repository) beginReplacement(filename string) (_ *Replacement, err erro
 		}
 	}()
 
-	var cleared int
-	if err = tx.QueryRow(`SELECT COUNT(*) FROM orders`).Scan(&cleared); err != nil {
-		return nil, err
-	}
-	if _, err = tx.Exec(`DELETE FROM order_items`); err != nil {
-		return nil, err
-	}
-	if _, err = tx.Exec(`DELETE FROM orders`); err != nil {
-		return nil, err
-	}
-
 	importID, err := r.createImport(tx, filename)
 	if err != nil {
 		return nil, err
 	}
-	orderStmt, err := tx.Prepare(r.db.Rebind(`INSERT INTO orders (
+	insertOrderStmt, err := tx.Prepare(r.db.Rebind(`INSERT INTO orders (
 		order_number, created_at, updated_at, customer, email, phone,
 		total_amount, refund_amount, delivery_cost, status_raw, status_stage, is_paid, is_canceled,
 		payment_system, delivery_service, channel, coupon, region, city, location_raw,
 		has_problem, problem_desc, cancel_reason, items_count, import_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`))
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	ON CONFLICT(order_number) DO NOTHING`))
 	if err != nil {
 		return nil, err
 	}
-	itemStmt, err := tx.Prepare(r.db.Rebind(`INSERT INTO order_items (
+	updateOrderStmt, err := tx.Prepare(r.db.Rebind(`UPDATE orders SET
+		created_at = COALESCE(?, created_at), updated_at = COALESCE(?, updated_at),
+		customer = ?, email = ?, phone = ?, total_amount = ?, refund_amount = ?, delivery_cost = ?,
+		status_raw = ?, status_stage = ?, is_paid = ?, is_canceled = ?, payment_system = ?,
+		delivery_service = ?, channel = ?, coupon = ?, region = ?, city = ?, location_raw = ?,
+		has_problem = ?, problem_desc = ?, cancel_reason = ?, items_count = ?, import_id = ?
+	WHERE order_number = ? AND (updated_at IS NULL OR COALESCE(?, updated_at) >= updated_at)`))
+	if err != nil {
+		_ = insertOrderStmt.Close()
+		return nil, err
+	}
+	deleteItemsStmt, err := tx.Prepare(r.db.Rebind(`DELETE FROM order_items WHERE order_number = ?`))
+	if err != nil {
+		_ = insertOrderStmt.Close()
+		_ = updateOrderStmt.Close()
+		return nil, err
+	}
+	insertItemStmt, err := tx.Prepare(r.db.Rebind(`INSERT INTO order_items (
 		order_number, offer_id, name, qty, price, line_sum, brand, category, gender, size, import_id
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?)`))
 	if err != nil {
-		_ = orderStmt.Close()
+		_ = insertOrderStmt.Close()
+		_ = updateOrderStmt.Close()
+		_ = deleteItemsStmt.Close()
 		return nil, err
 	}
 
-	return &Replacement{
-		repo: r, tx: tx, orderStmt: orderStmt, itemStmt: itemStmt,
-		importID: importID, cleared: cleared,
+	return &Merge{
+		repo: r, tx: tx, insertOrderStmt: insertOrderStmt, updateOrderStmt: updateOrderStmt,
+		deleteItemsStmt: deleteItemsStmt, insertItemStmt: insertItemStmt, importID: importID,
 	}, nil
 }
 
@@ -96,81 +109,117 @@ func (r *Repository) createImport(tx *sql.Tx, filename string) (int64, error) {
 	return result.LastInsertId()
 }
 
-// SaveBatch сохраняет ограниченный набор заказов подготовленными выражениями.
-func (r *Replacement) SaveBatch(orders []model.Order) error {
-	if r.closed {
+// SaveBatch добавляет новые заказы и обновляет существующие, если версия из
+// файла не старше сохранённой. Позиции принятого заказа заменяются целиком.
+func (m *Merge) SaveBatch(orders []model.Order) error {
+	if m.closed {
 		return fmt.Errorf("транзакция импорта уже закрыта")
 	}
 	for _, order := range orders {
-		if _, err := r.orderStmt.Exec(
-			order.OrderNumber, nullTime(order.CreatedAt), nullTime(order.UpdatedAt), order.Customer, order.Email, order.Phone,
-			order.TotalAmount, order.RefundAmount, order.DeliveryCost, order.StatusRaw, order.StatusStage, order.IsPaid, order.IsCanceled,
-			order.PaymentSystem, order.DeliveryService, order.Channel, order.Coupon, order.Region, order.City, order.LocationRaw,
-			order.HasProblem, order.ProblemDesc, order.CancelReason, len(order.Items), r.importID,
-		); err != nil {
+		createdAt := nullTime(order.CreatedAt)
+		updatedAt := nullTime(order.UpdatedAt)
+		values := []any{
+			createdAt, updatedAt, order.Customer, order.Email, order.Phone,
+			order.TotalAmount, order.RefundAmount, order.DeliveryCost, order.StatusRaw, order.StatusStage,
+			order.IsPaid, order.IsCanceled, order.PaymentSystem, order.DeliveryService, order.Channel,
+			order.Coupon, order.Region, order.City, order.LocationRaw, order.HasProblem,
+			order.ProblemDesc, order.CancelReason, len(order.Items), m.importID,
+		}
+
+		insertResult, err := m.insertOrderStmt.Exec(append([]any{order.OrderNumber}, values...)...)
+		if err != nil {
+			return err
+		}
+		inserted, err := insertResult.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if inserted > 0 {
+			m.added++
+		} else {
+			updateArgs := append(values, order.OrderNumber, updatedAt)
+			updateResult, updateErr := m.updateOrderStmt.Exec(updateArgs...)
+			if updateErr != nil {
+				return updateErr
+			}
+			updated, rowsErr := updateResult.RowsAffected()
+			if rowsErr != nil {
+				return rowsErr
+			}
+			if updated == 0 {
+				m.skipped++
+				continue
+			}
+			m.updated++
+		}
+
+		if _, err := m.deleteItemsStmt.Exec(order.OrderNumber); err != nil {
 			return err
 		}
 		for _, item := range order.Items {
-			if _, err := r.itemStmt.Exec(
+			if _, err := m.insertItemStmt.Exec(
 				order.OrderNumber, item.OfferID, item.Name, item.Qty, item.Price, item.LineSum,
-				item.Brand, item.Category, item.Gender, item.Size, r.importID,
+				item.Brand, item.Category, item.Gender, item.Size, m.importID,
 			); err != nil {
 				return err
 			}
-			r.items++
+			m.items++
 		}
 	}
 	return nil
 }
 
-func (r *Replacement) Complete(rowsTotal, ordersTotal int, start, end *time.Time) error {
-	if r.closed {
+func (m *Merge) Complete(rowsTotal int, start, end *time.Time) error {
+	if m.closed {
 		return fmt.Errorf("транзакция импорта уже закрыта")
 	}
-	_, err := r.tx.Exec(r.repo.db.Rebind(`UPDATE raw_import
-		SET rows_total = ?, orders_imported = ?, items_imported = ?, period_start = ?, period_end = ?
-		WHERE id = ?`), rowsTotal, ordersTotal, r.items, ptrTime(start), ptrTime(end), r.importID)
+	_, err := m.tx.Exec(m.repo.db.Rebind(`UPDATE raw_import SET
+		rows_total = ?, orders_imported = ?, orders_added = ?, orders_updated = ?,
+		orders_skipped = ?, items_imported = ?, period_start = ?, period_end = ?
+		WHERE id = ?`), rowsTotal, m.added+m.updated, m.added, m.updated, m.skipped,
+		m.items, ptrTime(start), ptrTime(end), m.importID)
 	if err != nil {
 		return err
 	}
-	r.closeStatements()
-	if err := r.tx.Commit(); err != nil {
+	m.closeStatements()
+	if err := m.tx.Commit(); err != nil {
 		return err
 	}
-	r.closed = true
+	m.closed = true
 	return nil
 }
 
-func (r *Replacement) Rollback() {
-	if r.closed {
+func (m *Merge) Rollback() {
+	if m.closed {
 		return
 	}
-	r.closeStatements()
-	_ = r.tx.Rollback()
-	r.closed = true
+	m.closeStatements()
+	_ = m.tx.Rollback()
+	m.closed = true
 }
 
-func (r *Replacement) closeStatements() {
-	if r.orderStmt != nil {
-		_ = r.orderStmt.Close()
-	}
-	if r.itemStmt != nil {
-		_ = r.itemStmt.Close()
+func (m *Merge) closeStatements() {
+	for _, statement := range []*sql.Stmt{m.insertOrderStmt, m.updateOrderStmt, m.deleteItemsStmt, m.insertItemStmt} {
+		if statement != nil {
+			_ = statement.Close()
+		}
 	}
 }
 
-func (r *Replacement) ImportID() int64 { return r.importID }
-func (r *Replacement) Cleared() int    { return r.cleared }
-func (r *Replacement) Items() int      { return r.items }
+func (m *Merge) ImportID() int64 { return m.importID }
+func (m *Merge) Added() int      { return m.added }
+func (m *Merge) Updated() int    { return m.updated }
+func (m *Merge) Skipped() int    { return m.skipped }
+func (m *Merge) Items() int      { return m.items }
 
-func ptrTime(t *time.Time) interface{} {
+func ptrTime(t *time.Time) any {
 	if t == nil || t.IsZero() {
 		return nil
 	}
 	return t.Format(tsLayout)
 }
 
-func nullTime(t time.Time) interface{} {
+func nullTime(t time.Time) any {
 	if t.IsZero() {
 		return nil
 	}
