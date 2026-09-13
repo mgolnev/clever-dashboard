@@ -53,6 +53,7 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Put("/traffic", h.putTraffic)
 	api.Get("/acquisition", h.acquisition)
 	api.Get("/analytics/status", h.analyticsStatus)
+	api.Post("/analytics/sync", h.analyticsSync)
 }
 
 func (h *Handler) health(c *fiber.Ctx) error {
@@ -394,4 +395,15 @@ func (h *Handler) analyticsStatus(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(report)
+}
+
+func (h *Handler) analyticsSync(c *fiber.Ctx) error {
+	status, err := h.c.TrafficSync.Status()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	if !status.Enabled {
+		return fiber.NewError(fiber.StatusConflict, "синхронизация аналитики выключена")
+	}
+	return c.Status(fiber.StatusAccepted).JSON(h.c.TrafficSync.Trigger())
 }

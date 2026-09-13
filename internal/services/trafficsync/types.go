@@ -3,7 +3,14 @@ package trafficsync
 // StatusReport — состояние автоматической загрузки трафика.
 type StatusReport struct {
 	Enabled bool           `json:"enabled"`
+	Syncing bool           `json:"syncing"`
 	Sources []SourceStatus `json:"sources"`
+}
+
+// TriggerResult — результат неблокирующего ручного запуска синхронизации.
+type TriggerResult struct {
+	Started bool `json:"started"`
+	Syncing bool `json:"syncing"`
 }
 
 type SourceStatus struct {

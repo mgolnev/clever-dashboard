@@ -54,4 +54,17 @@ func TestMigrateAddsCumulativeImportCountersToExistingDatabase(t *testing.T) {
 	if added != 10 || updated != 3 || skipped != 2 {
 		t.Fatalf("unexpected counters: added=%d updated=%d skipped=%d", added, updated, skipped)
 	}
+
+	for _, index := range []string{
+		"idx_orders_city",
+		"idx_orders_region",
+		"idx_orders_payment_system",
+		"idx_orders_delivery_service",
+	} {
+		var found string
+		if err := database.QueryRow(`SELECT name FROM sqlite_master
+			WHERE type = 'index' AND name = ?`, index).Scan(&found); err != nil {
+			t.Fatalf("missing filter index %s: %v", index, err)
+		}
+	}
 }

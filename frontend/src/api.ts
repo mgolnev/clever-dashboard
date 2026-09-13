@@ -2,6 +2,7 @@ import type {
   Bounds,
   AcquisitionReport,
   AnalyticsStatus,
+  AnalyticsSyncTrigger,
   City,
   FunnelReport,
   GoalReport,
@@ -101,8 +102,13 @@ export const api = {
     return fetch(`/api/acquisition?${p.toString()}`).then((r) => handle<AcquisitionReport>(r));
   },
 
-  analyticsStatus: () =>
-    fetch("/api/analytics/status").then((r) => handle<AnalyticsStatus>(r)),
+  analyticsStatus: (signal?: AbortSignal) =>
+    fetch("/api/analytics/status", { signal }).then((r) => handle<AnalyticsStatus>(r)),
+
+  syncAnalytics: (signal?: AbortSignal) =>
+    fetch("/api/analytics/sync", { method: "POST", signal }).then((r) =>
+      handle<AnalyticsSyncTrigger>(r)
+    ),
 
   metrics: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
     fetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>

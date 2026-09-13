@@ -408,6 +408,7 @@ AND. Фильтруют все стадии, разрезы и топы.
 ```jsonc
 {
   "enabled": true,
+  "syncing": false,
   "sources": [
     { "source": "metrika", "channel": "site", "configured": true,
       "status": "success", "dateFrom": "2026-08-10", "dateTo": "2026-08-16",
@@ -417,6 +418,20 @@ AND. Фильтруют все стадии, разрезы и топы.
   ]
 }
 ```
+
+## `POST /api/analytics/sync`
+
+Неблокирующий ручной запуск обновления дневного трафика из Яндекс Метрики и
+AppMetrica. Endpoint сразу отвечает `202`, а выполнение продолжается в фоне:
+
+```json
+{ "started": true, "syncing": true }
+```
+
+Если синхронизация уже выполняется, новый параллельный запуск не создаётся:
+`started` будет `false`, а `syncing` — `true`. Текущий прогресс и результат
+читаются через `GET /api/analytics/status`; сохранённые данные меняются только
+после успешного ответа внешнего источника.
 
 ## `GET /api/plan?year=YYYY` · `PUT /api/plan`
 

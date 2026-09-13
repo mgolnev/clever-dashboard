@@ -14,6 +14,7 @@ import LogisticsTab from "./components/LogisticsTab";
 import DynamicsTab from "./components/DynamicsTab";
 import PlanTab from "./components/PlanTab";
 import AcquisitionTab from "./components/AcquisitionTab";
+import { useAnalyticsRefresh } from "./hooks/useAnalyticsRefresh";
 
 type Tab = "overview" | "traffic" | "plan" | "customers" | "funnels" | "logistics" | "dynamics";
 type CompareMode = "prev" | "yoy" | "prevMonth" | "custom";
@@ -142,28 +143,55 @@ export default function App() {
   const couponKey = coupon.join(",");
 
   useEffect(() => {
-    if (!start || !end) return;
+    if (!start || !end || tab === "plan") return;
+    let active = true;
     setLoading(true);
     setError(null);
     const f = { city, region, channel, payment, delivery, coupon };
-    Promise.all([
-      api.metrics(start, end, f, cs, ce),
-      api.funnel(start, end, f, cs, ce),
-      api.logistics(start, end, f, undefined, cs, ce),
-      api.acquisition(start, end, cs, ce),
-      api.analyticsStatus(),
-    ])
-      .then(([m, fn, l, a, sync]) => {
-        setReport(m);
-        setFunnel(fn);
-        setLogistics(l);
-        setAcquisition(a);
-        setAnalyticsStatus(sync);
+    const loadActiveTab = async () => {
+      switch (tab) {
+        case "overview":
+        case "customers": {
+          const next = await api.metrics(start, end, f, cs, ce);
+          if (active) setReport(next);
+          break;
+        }
+        case "funnels": {
+          const next = await api.funnel(start, end, f, cs, ce);
+          if (active) setFunnel(next);
+          break;
+        }
+        case "logistics":
+        case "dynamics": {
+          const next = await api.logistics(start, end, f, undefined, cs, ce);
+          if (active) setLogistics(next);
+          break;
+        }
+        case "traffic": {
+          const [next, sync] = await Promise.all([
+            api.acquisition(start, end, cs, ce),
+            api.analyticsStatus(),
+          ]);
+          if (active) {
+            setAcquisition(next);
+            setAnalyticsStatus(sync);
+          }
+          break;
+        }
+      }
+    };
+    loadActiveTab()
+      .catch((e) => {
+        if (active) setError(e.message);
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, cs, ce, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
+  }, [start, end, cs, ce, tab, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
 
   const onChange = (s: string, e: string) => {
     setStart(s);
@@ -178,6 +206,14 @@ export default function App() {
     }
     loadGeo();
   };
+
+  const reloadAcquisition = useCallback(async () => {
+    if (!start || !end) return;
+    const next = await api.acquisition(start, end, cs, ce);
+    setAcquisition(next);
+  }, [start, end, cs, ce]);
+
+  const analyticsRefresh = useAnalyticsRefresh(setAnalyticsStatus, reloadAcquisition);
 
   const hasData = !!bounds?.max;
 
@@ -281,7 +317,14 @@ export default function App() {
       )}
 
       {tab !== "plan" && tab === "traffic" && acquisition && (
-        <AcquisitionTab report={acquisition} status={analyticsStatus} showCompare={compareEnabled} />
+        <AcquisitionTab
+          report={acquisition}
+          status={analyticsStatus}
+          showCompare={compareEnabled}
+          onRefresh={analyticsRefresh.refresh}
+          refreshing={analyticsRefresh.refreshing}
+          refreshError={analyticsRefresh.error}
+        />
       )}
 
       {tab !== "plan" && tab === "logistics" && !loading && !logistics && (

@@ -19,6 +19,9 @@ interface Props {
   report: AcquisitionReport;
   status: AnalyticsStatus | null;
   showCompare?: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
+  refreshError: string | null;
 }
 
 type TrafficMode = "sessions" | "users";
@@ -364,7 +367,14 @@ function DynamicsSection({ points, channel, label, accent, granularity, trafficM
   );
 }
 
-export default function AcquisitionTab({ report, status, showCompare = true }: Props) {
+export default function AcquisitionTab({
+  report,
+  status,
+  showCompare = true,
+  onRefresh,
+  refreshing,
+  refreshError,
+}: Props) {
   const [granularity, setGranularity] = useState<AcquisitionGranularity>("day");
   const [trafficMode, setTrafficMode] = useState<TrafficMode>("sessions");
   const [funnelChannel, setFunnelChannel] = useState<DynamicsChannel>("all");
@@ -375,6 +385,8 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
   const prevByChannel = new Map(report.prev.channels.map((c) => [c.channel, c]));
   const funnelCurrent = report.current.channels.find((channel) => channel.channel === funnelChannel) ?? report.current.channels[0];
   const funnelPrevious = prevByChannel.get(funnelChannel);
+  const syncing = refreshing || !!status?.syncing;
+  const canRefresh = !!status?.enabled && !!status.sources.some((source) => source.configured);
   return (
     <div className="space-y-4">
       <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -383,7 +395,20 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
             <h2 className="font-semibold text-ink">Источники трафика</h2>
             <p className="mt-0.5 text-xs text-slate-500">Храним дневные агрегаты без идентификаторов пользователей.</p>
           </div>
-          {report.current.sampled && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Яндекс применил семплирование</span>}
+          <div className="flex flex-wrap items-center gap-2">
+            {report.current.sampled && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Яндекс применил семплирование</span>}
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={!canRefresh || syncing}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-brand/20 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand transition hover:border-brand/35 hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-3.5 w-3.5 fill-none stroke-current ${syncing ? "animate-spin" : ""}`} strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5m9.4-3A8 8 0 006 7.5L4 12m2 4.5A8 8 0 0018 16l2-4" />
+              </svg>
+              {syncing ? "Обновление…" : "Обновить"}
+            </button>
+          </div>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           {status?.sources.map((source) => <SourceState key={source.source} source={source} enabled={status.enabled} />)}
@@ -391,6 +416,7 @@ export default function AcquisitionTab({ report, status, showCompare = true }: P
         {!status?.enabled && (
           <p className="mt-3 text-xs text-slate-500">Добавьте секреты backend и включите <code>ANALYTICS_SYNC_ENABLED=true</code>. После перезапуска первая историческая загрузка начнётся автоматически.</p>
         )}
+        {refreshError && <p className="mt-3 text-xs text-rose-600">{refreshError}</p>}
       </section>
 
       {!report.current.hasTraffic && (

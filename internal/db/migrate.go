@@ -81,6 +81,10 @@ func (d *DB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_orders_status_stage ON orders(status_stage)`,
 		`CREATE INDEX IF NOT EXISTS idx_orders_channel ON orders(channel)`,
+		`CREATE INDEX IF NOT EXISTS idx_orders_city ON orders(city)`,
+		`CREATE INDEX IF NOT EXISTS idx_orders_region ON orders(region)`,
+		`CREATE INDEX IF NOT EXISTS idx_orders_payment_system ON orders(payment_system)`,
+		`CREATE INDEX IF NOT EXISTS idx_orders_delivery_service ON orders(delivery_service)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_order_number ON order_items(order_number)`,
 		`CREATE INDEX IF NOT EXISTS idx_items_category ON order_items(category)`,
 

@@ -212,7 +212,14 @@ export interface AnalyticsSourceStatus {
 
 export interface AnalyticsStatus {
   enabled: boolean;
+  // Компактный /api/goal не зависит от runtime-состояния sync-сервиса.
+  syncing?: boolean;
   sources: AnalyticsSourceStatus[];
+}
+
+export interface AnalyticsSyncTrigger {
+  started: boolean;
+  syncing: boolean;
 }
 
 export interface GoalChannelSummary {

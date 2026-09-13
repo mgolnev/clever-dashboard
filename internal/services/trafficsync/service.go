@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/clever/clever-dashboard/internal/model"
@@ -30,7 +30,7 @@ type Service struct {
 	lookbackDays int
 	backfillDays int
 	location     *time.Location
-	mu           sync.Mutex
+	running      atomic.Bool
 }
 
 func NewService(repo *Repository, sources []Source, enabled bool, lookbackDays, backfillDays int, timezone string) *Service {
@@ -50,9 +50,30 @@ func (s *Service) Sync(ctx context.Context) error {
 	if !s.enabled {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if !s.running.CompareAndSwap(false, true) {
+		return nil
+	}
+	defer s.running.Store(false)
+	return s.sync(ctx)
+}
 
+// Trigger запускает ручную синхронизацию в фоне. Одновременные запуски не
+// дублируются: если синхронизация уже идёт, Started будет false.
+func (s *Service) Trigger() TriggerResult {
+	if !s.enabled {
+		return TriggerResult{}
+	}
+	started := s.running.CompareAndSwap(false, true)
+	if started {
+		go func() {
+			defer s.running.Store(false)
+			_ = s.sync(context.Background())
+		}()
+	}
+	return TriggerResult{Started: started, Syncing: s.running.Load()}
+}
+
+func (s *Service) sync(ctx context.Context) error {
 	now := time.Now().In(s.location)
 	to := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.location).AddDate(0, 0, -1)
 	var syncErrors []error
@@ -168,7 +189,11 @@ func (s *Service) Status() (*StatusReport, error) {
 	if err != nil {
 		return nil, err
 	}
-	report := &StatusReport{Enabled: s.enabled, Sources: make([]SourceStatus, 0, len(s.sources))}
+	report := &StatusReport{
+		Enabled: s.enabled,
+		Syncing: s.running.Load(),
+		Sources: make([]SourceStatus, 0, len(s.sources)),
+	}
 	for _, source := range s.sources {
 		st := latest[source.Name()]
 		st.Source = source.Name()

@@ -36,7 +36,7 @@ orders + traffic + plan ──────────────────�
 | `services/orders` | Импорт, дедуп, хранение витрины | `ingestion`, `model`, `db` |
 | `services/metrics` | KPI, воронка, срезы, сравнение периодов | `db` |
 | `connectors/metrika`, `connectors/appmetrica` | Чтение дневных агрегатов Reporting API | `model` |
-| `services/trafficsync` | Backfill, upsert и журнал синхронизации | `db`, контракт источника |
+| `services/trafficsync` | Плановый/ручной запуск, backfill, upsert и журнал синхронизации | `db`, контракт источника |
 | `services/ecomsync` | Backfill дневной аудитории E-commerce этапов | `db`, контракт источника |
 | `services/acquisition` | Трафик, E-commerce воронка и CR по каналам | `db` |
 | `services/goal` | Компактная read-модель плана, NET и трафика для вкладки «Цель» | `db`, `orderstage` |
@@ -49,6 +49,10 @@ orders + traffic + plan ──────────────────�
 `goal` также не вызывает `metrics`, `acquisition`, `plan` или `trafficsync`:
 это самостоятельная оптимизированная read-модель поверх общей БД. Решение и
 границы контракта описаны в [ADR-0008](adr/0008-compact-goal-read-model.md).
+
+React-клиент загружает аналитический отчёт только активной вкладки. Это не
+запускает невидимые тяжёлые агрегации и особенно важно для SQLite, где запись и
+аналитические чтения используют ограниченный пул соединений.
 
 Импорт читает файл построчно и передаёт в `orders` батчи по 200 заказов. Все
 батчи входят в одну транзакцию накопительного merge, поэтому частично

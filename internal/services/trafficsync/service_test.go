@@ -3,6 +3,7 @@ package trafficsync
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,25 @@ type fakeSource struct {
 	from     time.Time
 	to       time.Time
 	revision string
+}
+
+type blockingSource struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (f *blockingSource) Name() string     { return "metrika" }
+func (f *blockingSource) Channel() string  { return "site" }
+func (f *blockingSource) Configured() bool { return true }
+func (f *blockingSource) Fetch(ctx context.Context, _, to time.Time) ([]model.DailyTraffic, error) {
+	f.once.Do(func() { close(f.started) })
+	select {
+	case <-f.release:
+		return []model.DailyTraffic{{Day: to.Format("2006-01-02"), Sessions: 1}}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (f *fakeSource) Name() string     { return "metrika" }
@@ -92,4 +112,45 @@ func TestSyncBackfillThenLookback(t *testing.T) {
 	if len(status.Sources) != 1 || status.Sources[0].Status != "success" || status.Sources[0].LastDataDay == "" {
 		t.Fatalf("unexpected status: %+v", status)
 	}
+}
+
+func TestTriggerRunsInBackgroundAndRejectsConcurrentStart(t *testing.T) {
+	source := &blockingSource{started: make(chan struct{}), release: make(chan struct{})}
+	service := NewService(NewRepository(syncTestDB(t)), []Source{source}, true, 3, 10, "UTC")
+
+	first := service.Trigger()
+	if !first.Started || !first.Syncing {
+		t.Fatalf("first trigger = %+v", first)
+	}
+	select {
+	case <-source.started:
+	case <-time.After(time.Second):
+		t.Fatal("background sync did not start")
+	}
+
+	second := service.Trigger()
+	if second.Started || !second.Syncing {
+		t.Fatalf("concurrent trigger = %+v", second)
+	}
+	status, err := service.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Syncing {
+		t.Fatal("status must expose running synchronization")
+	}
+
+	close(source.release)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		status, err = service.Status()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !status.Syncing {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("background sync did not finish")
 }
