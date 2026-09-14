@@ -7,6 +7,10 @@
 # Local database / data
 /data/*.db
 /data/*.sqlite
+/data/*.db-wal
+/data/*.db-shm
+/data/*.sqlite-wal
+/data/*.sqlite-shm
 /uploads/
 
 # Env
@@ -25,4 +29,11 @@
 *.log
 
 # Large source export (kept locally, not in VCS)
-sale_order.xls
+sale_order*.xls
+
+# Local generated artifacts
+/.codex-build/
+/.playwright-cli/
+/output/
+/outputs/
+/Mobile_Attribution_Platforms_Comparison.pptx
