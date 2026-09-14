@@ -299,14 +299,21 @@ UI показывает долю стадии от «Оформлено» для
 {
   "period": { "start": "...", "end": "...", "days": 7 },
   "previous": { "start": "...", "end": "...", "days": 7 },
+  "dataAsOf": "2026-09-13",       // дата актуальности снимка заказов
   "pilotCities": ["Пермь", "Киров"],  // из LOGISTICS_PILOT_CITIES
   "pilotStart": "2026-06-01",         // из LOGISTICS_PILOT_START (опционально)
   "current": {
     "summary": {
       "orders": 0, "revenue": 0, "paidOrders": 0, "paidRate": 0,
+      "processedOrders": 0, "shippedOrders": 0, "pendingShipment": 0,
+      "shipmentRate": 0,
+      "pending0To1": 0, "pending2To3": 0, "pending4Plus": 0,
+      "avgPendingAgeDays": 0,
       "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0
     },
     "byService": [{ "name": "...", "orders": 0, "share": 0, "paidOrders": 0, "paidRate": 0,
+      "processedOrders": 0, "shippedOrders": 0, "pendingShipment": 0, "shipmentRate": 0,
+      "pending0To1": 0, "pending2To3": 0, "pending4Plus": 0, "avgPendingAgeDays": 0,
       "revenue": 0, "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0 }],
     "byCity": [{ "name": "...", "isPilot": true, "orders": 0, "share": 0, "paidOrders": 0,
       "paidRate": 0, "revenue": 0, "deliveryTotal": 0, "avgDelivery": 0, "freeOrders": 0, "freeDeliveryRate": 0 }],
@@ -320,6 +327,16 @@ UI показывает долю стадии от «Оформлено» для
 ```
 
 - `orders` — гросс-заказы периода; `revenue` — сумма `total_amount` не отменённых.
+- `processedOrders` — заказы периода, дошедшие до обработки: текущие стадии
+  `processing`, `shipped`, `in_pvz`, `completed`, `returned`.
+- `shippedOrders` — дошедшие до отправки: `shipped`, `in_pvz`, `completed`,
+  `returned`; `pendingShipment = processedOrders − shippedOrders`, а
+  `shipmentRate = shippedOrders / processedOrders`.
+- `pending0To1` / `pending2To3` / `pending4Plus` — текущий неотправленный хвост
+  по возрасту в календарных днях с `created_at` до `dataAsOf`;
+  `avgPendingAgeDays` — средний возраст того же хвоста. Это индикатор риска, а
+  не точный SLA «сборка → отправка»: история переходов статуса в выгрузке не
+  сохраняется.
 - `paidRate` — оплаченные / гросс (%), прокси «конверсии» в данных Битрикса.
 - `avgDelivery` — среднее `delivery_cost` на заказ; `freeDeliveryRate` — доля с
   `delivery_cost = 0`.

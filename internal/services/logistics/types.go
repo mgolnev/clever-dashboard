@@ -18,28 +18,44 @@ type Range struct {
 
 // Summary — агрегаты по доставке за период (все гросс-заказы периода).
 type Summary struct {
-	Orders           int     `json:"orders"`
-	Revenue          int     `json:"revenue"`
-	PaidOrders       int     `json:"paidOrders"`
-	PaidRate         float64 `json:"paidRate"`
-	DeliveryTotal    int     `json:"deliveryTotal"`
-	AvgDelivery      int     `json:"avgDelivery"`
-	FreeOrders       int     `json:"freeOrders"`
-	FreeDeliveryRate float64 `json:"freeDeliveryRate"`
+	Orders            int     `json:"orders"`
+	Revenue           int     `json:"revenue"`
+	PaidOrders        int     `json:"paidOrders"`
+	PaidRate          float64 `json:"paidRate"`
+	ProcessedOrders   int     `json:"processedOrders"`
+	ShippedOrders     int     `json:"shippedOrders"`
+	PendingShipment   int     `json:"pendingShipment"`
+	ShipmentRate      float64 `json:"shipmentRate"`
+	Pending0To1       int     `json:"pending0To1"`
+	Pending2To3       int     `json:"pending2To3"`
+	Pending4Plus      int     `json:"pending4Plus"`
+	AvgPendingAgeDays float64 `json:"avgPendingAgeDays"`
+	DeliveryTotal     int     `json:"deliveryTotal"`
+	AvgDelivery       int     `json:"avgDelivery"`
+	FreeOrders        int     `json:"freeOrders"`
+	FreeDeliveryRate  float64 `json:"freeDeliveryRate"`
 }
 
 // ServiceRow — разрез по службе доставки.
 type ServiceRow struct {
-	Name             string  `json:"name"`
-	Orders           int     `json:"orders"`
-	Share            float64 `json:"share"`
-	PaidOrders       int     `json:"paidOrders"`
-	PaidRate         float64 `json:"paidRate"`
-	Revenue          int     `json:"revenue"`
-	DeliveryTotal    int     `json:"deliveryTotal"`
-	AvgDelivery      int     `json:"avgDelivery"`
-	FreeOrders       int     `json:"freeOrders"`
-	FreeDeliveryRate float64 `json:"freeDeliveryRate"`
+	Name              string  `json:"name"`
+	Orders            int     `json:"orders"`
+	Share             float64 `json:"share"`
+	PaidOrders        int     `json:"paidOrders"`
+	PaidRate          float64 `json:"paidRate"`
+	ProcessedOrders   int     `json:"processedOrders"`
+	ShippedOrders     int     `json:"shippedOrders"`
+	PendingShipment   int     `json:"pendingShipment"`
+	ShipmentRate      float64 `json:"shipmentRate"`
+	Pending0To1       int     `json:"pending0To1"`
+	Pending2To3       int     `json:"pending2To3"`
+	Pending4Plus      int     `json:"pending4Plus"`
+	AvgPendingAgeDays float64 `json:"avgPendingAgeDays"`
+	Revenue           int     `json:"revenue"`
+	DeliveryTotal     int     `json:"deliveryTotal"`
+	AvgDelivery       int     `json:"avgDelivery"`
+	FreeOrders        int     `json:"freeOrders"`
+	FreeDeliveryRate  float64 `json:"freeDeliveryRate"`
 }
 
 // CityRow — разрез по городу.
@@ -107,6 +123,7 @@ type PeriodLogistics struct {
 type Report struct {
 	Period      Range           `json:"period"`
 	Previous    Range           `json:"previous"`
+	DataAsOf    string          `json:"dataAsOf,omitempty"`
 	Current     PeriodLogistics `json:"current"`
 	Prev        PeriodLogistics `json:"prev"`
 	PilotCities []string        `json:"pilotCities"`

@@ -70,11 +70,19 @@ func (s *Service) Report(start, end, compareStart, compareEnd string, f Filters,
 	}
 	prevDays := int(prevEnd.Sub(prevStart).Hours()/24) + 1
 
-	cur, err := s.period(st, en, f, parseGranularity(granularity))
+	dataAsOf, err := s.repo.dataAsOf()
 	if err != nil {
 		return nil, err
 	}
-	prev, err := s.period(prevStart, prevEnd, f, parseGranularity(granularity))
+	if dataAsOf == "" {
+		dataAsOf = en.Format(dateLayout)
+	}
+
+	cur, err := s.period(st, en, dataAsOf, f, parseGranularity(granularity))
+	if err != nil {
+		return nil, err
+	}
+	prev, err := s.period(prevStart, prevEnd, dataAsOf, f, parseGranularity(granularity))
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +90,7 @@ func (s *Service) Report(start, end, compareStart, compareEnd string, f Filters,
 	return &Report{
 		Period:      Range{Start: st.Format(dateLayout), End: en.Format(dateLayout), Days: days},
 		Previous:    Range{Start: prevStart.Format(dateLayout), End: prevEnd.Format(dateLayout), Days: prevDays},
+		DataAsOf:    dataAsOf,
 		Current:     cur,
 		Prev:        prev,
 		PilotCities: nonNilStrings(s.pilotCities),
@@ -162,16 +171,16 @@ func nonNilStrings(in []string) []string {
 	return out
 }
 
-func (s *Service) period(st, en time.Time, f Filters, g Granularity) (PeriodLogistics, error) {
+func (s *Service) period(st, en time.Time, dataAsOf string, f Filters, g Granularity) (PeriodLogistics, error) {
 	startTs := st.Format(dateLayout) + " 00:00:00"
 	endTs := en.Format(dateLayout) + " 23:59:59"
 
 	var pm PeriodLogistics
 	var err error
-	if pm.Summary, err = s.repo.summary(startTs, endTs, f); err != nil {
+	if pm.Summary, err = s.repo.summary(startTs, endTs, dataAsOf, f); err != nil {
 		return pm, err
 	}
-	if pm.ByService, err = s.repo.byService(startTs, endTs, f, 12); err != nil {
+	if pm.ByService, err = s.repo.byService(startTs, endTs, dataAsOf, f, 12); err != nil {
 		return pm, err
 	}
 	pilotSet := make(map[string]bool, len(s.pilotCities))
@@ -185,11 +194,11 @@ func (s *Service) period(st, en time.Time, f Filters, g Granularity) (PeriodLogi
 		return pm, err
 	}
 	if len(s.pilotCities) > 0 {
-		pilot, err := s.repo.cohortSummary(startTs, endTs, f, s.pilotCities, true)
+		pilot, err := s.repo.cohortSummary(startTs, endTs, dataAsOf, f, s.pilotCities, true)
 		if err != nil {
 			return pm, err
 		}
-		control, err := s.repo.cohortSummary(startTs, endTs, f, s.pilotCities, false)
+		control, err := s.repo.cohortSummary(startTs, endTs, dataAsOf, f, s.pilotCities, false)
 		if err != nil {
 			return pm, err
 		}

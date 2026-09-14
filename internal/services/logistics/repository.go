@@ -76,6 +76,34 @@ func round2(f float64) float64 {
 	return float64(int(f*100+0.5)) / 100
 }
 
+const (
+	reachedProcessing = "status_stage IN ('processing','shipped','in_pvz','completed','returned')"
+	reachedShipment   = "status_stage IN ('shipped','in_pvz','completed','returned')"
+	pendingShipment   = "status_stage = 'processing'"
+)
+
+func ageDaysExpr(d *db.DB, col string) string {
+	if d.IsPostgres() {
+		return fmt.Sprintf("GREATEST(0, CAST(? AS DATE) - CAST(%s AS DATE))", col)
+	}
+	return fmt.Sprintf("MAX(0, CAST(julianday(?) - julianday(date(%s)) AS INTEGER))", col)
+}
+
+func finalizeOperational(
+	processed, shipped int,
+	pending int,
+	avgPending float64,
+) (float64, int, float64) {
+	rate := 0.0
+	if processed > 0 {
+		rate = round2(float64(shipped) / float64(processed) * 100)
+	}
+	if pending == 0 {
+		avgPending = 0
+	}
+	return rate, processed - shipped, round2(avgPending)
+}
+
 // weekExpr — понедельник ISO-недели, содержащей дату (начало недели).
 // Postgres: DATE_TRUNC('week') уже даёт понедельник. SQLite: 'weekday 0'
 // сдвигает к ближайшему воскресенью (включительно), '-6 days' — к понедельнику
@@ -118,21 +146,56 @@ func (r *Repository) dataBounds() (string, string, error) {
 	return *min, *max, nil
 }
 
-func (r *Repository) summary(start, end string, f Filters) (Summary, error) {
+func (r *Repository) dataAsOf() (string, error) {
+	var created, updated *string
+	row := r.db.QueryRow(`SELECT CAST(MAX(created_at) AS TEXT), CAST(MAX(updated_at) AS TEXT) FROM orders`)
+	if err := row.Scan(&created, &updated); err != nil {
+		return "", err
+	}
+	latest := ""
+	if created != nil {
+		latest = *created
+	}
+	if updated != nil && *updated > latest {
+		latest = *updated
+	}
+	if len(latest) >= 10 {
+		return latest[:10], nil
+	}
+	return latest, nil
+}
+
+func (r *Repository) summary(start, end, asOf string, f Filters) (Summary, error) {
 	var s Summary
 	cc, cargs := geoCond(f, "")
-	q := r.db.Rebind(`SELECT
+	q := r.db.Rebind(`WITH scoped AS (
+		SELECT *, ` + ageDaysExpr(r.db, "created_at") + ` AS age_days
+		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc + `
+	) SELECT
 		COUNT(*),
 		COALESCE(SUM(CASE WHEN is_canceled = ` + falseVal(r.db) + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + trueVal(r.db) + ` THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(delivery_cost),0),
-		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0)
-		FROM orders WHERE created_at >= ? AND created_at <= ?` + cc)
-	err := r.db.QueryRow(q, append([]interface{}{start, end}, cargs...)...).Scan(
-		&s.Orders, &s.Revenue, &s.PaidOrders, &s.DeliveryTotal, &s.FreeOrders)
+		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + reachedProcessing + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + reachedShipment + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days <= 1 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days BETWEEN 2 AND 3 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days >= 4 THEN 1 ELSE 0 END),0),
+		COALESCE(AVG(CASE WHEN ` + pendingShipment + ` THEN age_days END),0)
+		FROM scoped`)
+	args := append([]interface{}{asOf, start, end}, cargs...)
+	err := r.db.QueryRow(q, args...).Scan(
+		&s.Orders, &s.Revenue, &s.PaidOrders, &s.DeliveryTotal, &s.FreeOrders,
+		&s.ProcessedOrders, &s.ShippedOrders, &s.PendingShipment,
+		&s.Pending0To1, &s.Pending2To3, &s.Pending4Plus, &s.AvgPendingAgeDays)
 	if err != nil {
 		return s, err
 	}
+	s.ShipmentRate, s.PendingShipment, s.AvgPendingAgeDays = finalizeOperational(
+		s.ProcessedOrders, s.ShippedOrders, s.PendingShipment, s.AvgPendingAgeDays,
+	)
 	if s.Orders > 0 {
 		s.PaidRate = round2(float64(s.PaidOrders) / float64(s.Orders) * 100)
 		s.AvgDelivery = s.DeliveryTotal / s.Orders
@@ -141,12 +204,12 @@ func (r *Repository) summary(start, end string, f Filters) (Summary, error) {
 	return s, nil
 }
 
-func (r *Repository) cohortSummary(start, end string, f Filters, pilotCities []string, isPilot bool) (Summary, error) {
+func (r *Repository) cohortSummary(start, end, asOf string, f Filters, pilotCities []string, isPilot bool) (Summary, error) {
 	if len(pilotCities) == 0 {
 		return Summary{}, nil
 	}
 	ph := make([]string, len(pilotCities))
-	args := []interface{}{start, end}
+	args := []interface{}{asOf, start, end}
 	for i, c := range pilotCities {
 		ph[i] = "?"
 		args = append(args, c)
@@ -164,20 +227,35 @@ func (r *Repository) cohortSummary(start, end string, f Filters, pilotCities []s
 		regionCond = rc
 		args = append(args, rargs...)
 	}
-	q := r.db.Rebind(`SELECT
+	q := r.db.Rebind(`WITH scoped AS (
+		SELECT *, ` + ageDaysExpr(r.db, "created_at") + ` AS age_days
+		FROM orders WHERE created_at >= ? AND created_at <= ?
+		AND ` + inClause + ` AND city IS NOT NULL AND city <> ''` + regionCond + `
+	) SELECT
 		COUNT(*),
 		COALESCE(SUM(CASE WHEN is_canceled = ` + falseVal(r.db) + ` THEN total_amount ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN is_paid = ` + trueVal(r.db) + ` THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(delivery_cost),0),
-		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0)
-		FROM orders WHERE created_at >= ? AND created_at <= ?
-		AND ` + inClause + ` AND city IS NOT NULL AND city <> ''` + regionCond)
+		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + reachedProcessing + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + reachedShipment + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days <= 1 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days BETWEEN 2 AND 3 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN ` + pendingShipment + ` AND age_days >= 4 THEN 1 ELSE 0 END),0),
+		COALESCE(AVG(CASE WHEN ` + pendingShipment + ` THEN age_days END),0)
+		FROM scoped`)
 	var s Summary
 	err := r.db.QueryRow(q, args...).Scan(
-		&s.Orders, &s.Revenue, &s.PaidOrders, &s.DeliveryTotal, &s.FreeOrders)
+		&s.Orders, &s.Revenue, &s.PaidOrders, &s.DeliveryTotal, &s.FreeOrders,
+		&s.ProcessedOrders, &s.ShippedOrders, &s.PendingShipment,
+		&s.Pending0To1, &s.Pending2To3, &s.Pending4Plus, &s.AvgPendingAgeDays)
 	if err != nil {
 		return s, err
 	}
+	s.ShipmentRate, s.PendingShipment, s.AvgPendingAgeDays = finalizeOperational(
+		s.ProcessedOrders, s.ShippedOrders, s.PendingShipment, s.AvgPendingAgeDays,
+	)
 	if s.Orders > 0 {
 		s.PaidRate = round2(float64(s.PaidOrders) / float64(s.Orders) * 100)
 		s.AvgDelivery = s.DeliveryTotal / s.Orders
@@ -186,18 +264,30 @@ func (r *Repository) cohortSummary(start, end string, f Filters, pilotCities []s
 	return s, nil
 }
 
-func (r *Repository) byService(start, end string, f Filters, limit int) ([]ServiceRow, error) {
+func (r *Repository) byService(start, end, asOf string, f Filters, limit int) ([]ServiceRow, error) {
 	cc, cargs := geoCond(f, "")
-	q := r.db.Rebind(fmt.Sprintf(`SELECT COALESCE(NULLIF(delivery_service,''),'—') AS label,
+	q := r.db.Rebind(fmt.Sprintf(`WITH scoped AS (
+		SELECT *, `+ageDaysExpr(r.db, "created_at")+` AS age_days
+		FROM orders WHERE created_at >= ? AND created_at <= ?`+cc+`
+	) SELECT COALESCE(NULLIF(delivery_service,''),'—') AS label,
 		COUNT(*) AS orders,
 		COALESCE(SUM(CASE WHEN is_canceled = `+falseVal(r.db)+` THEN total_amount ELSE 0 END),0) AS revenue,
 		COALESCE(SUM(CASE WHEN is_paid = `+trueVal(r.db)+` THEN 1 ELSE 0 END),0) AS paid,
 		COALESCE(SUM(delivery_cost),0) AS delivery_total,
-		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0) AS free_orders
-		FROM orders WHERE created_at >= ? AND created_at <= ?`+cc+`
+		COALESCE(SUM(CASE WHEN delivery_cost = 0 THEN 1 ELSE 0 END),0) AS free_orders,
+		COALESCE(SUM(CASE WHEN `+reachedProcessing+` THEN 1 ELSE 0 END),0) AS processed,
+		COALESCE(SUM(CASE WHEN `+reachedShipment+` THEN 1 ELSE 0 END),0) AS shipped,
+		COALESCE(SUM(CASE WHEN `+pendingShipment+` THEN 1 ELSE 0 END),0) AS pending,
+		COALESCE(SUM(CASE WHEN `+pendingShipment+` AND age_days <= 1 THEN 1 ELSE 0 END),0) AS pending_0_1,
+		COALESCE(SUM(CASE WHEN `+pendingShipment+` AND age_days BETWEEN 2 AND 3 THEN 1 ELSE 0 END),0) AS pending_2_3,
+		COALESCE(SUM(CASE WHEN `+pendingShipment+` AND age_days >= 4 THEN 1 ELSE 0 END),0) AS pending_4_plus,
+		COALESCE(AVG(CASE WHEN `+pendingShipment+` THEN age_days END),0) AS avg_pending_age
+		FROM scoped
 		GROUP BY COALESCE(NULLIF(delivery_service,''),'—')
-		ORDER BY orders DESC LIMIT %d`, limit))
-	rows, err := r.db.Query(q, append([]interface{}{start, end}, cargs...)...)
+		HAVING COALESCE(SUM(CASE WHEN `+reachedProcessing+` THEN 1 ELSE 0 END),0) > 0
+		ORDER BY pending DESC, processed DESC, orders DESC LIMIT %d`, limit))
+	args := append([]interface{}{asOf, start, end}, cargs...)
+	rows, err := r.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +298,11 @@ func (r *Repository) byService(start, end string, f Filters, limit int) ([]Servi
 	for rows.Next() {
 		var row ServiceRow
 		var paid int
-		if err := rows.Scan(&row.Name, &row.Orders, &row.Revenue, &paid, &row.DeliveryTotal, &row.FreeOrders); err != nil {
+		if err := rows.Scan(
+			&row.Name, &row.Orders, &row.Revenue, &paid, &row.DeliveryTotal, &row.FreeOrders,
+			&row.ProcessedOrders, &row.ShippedOrders, &row.PendingShipment,
+			&row.Pending0To1, &row.Pending2To3, &row.Pending4Plus, &row.AvgPendingAgeDays,
+		); err != nil {
 			return nil, err
 		}
 		totalOrders += row.Orders
@@ -223,6 +317,9 @@ func (r *Repository) byService(start, end string, f Filters, limit int) ([]Servi
 			out[i].Share = round2(float64(out[i].Orders) / float64(totalOrders) * 100)
 		}
 		out[i].PaidOrders = paidByRow[i]
+		out[i].ShipmentRate, out[i].PendingShipment, out[i].AvgPendingAgeDays = finalizeOperational(
+			out[i].ProcessedOrders, out[i].ShippedOrders, out[i].PendingShipment, out[i].AvgPendingAgeDays,
+		)
 		if out[i].Orders > 0 {
 			out[i].PaidRate = round2(float64(paidByRow[i]) / float64(out[i].Orders) * 100)
 			out[i].AvgDelivery = out[i].DeliveryTotal / out[i].Orders

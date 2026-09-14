@@ -376,6 +376,14 @@ export interface LogisticsSummary {
   revenue: number;
   paidOrders: number;
   paidRate: number;
+  processedOrders: number;
+  shippedOrders: number;
+  pendingShipment: number;
+  shipmentRate: number;
+  pending0To1: number;
+  pending2To3: number;
+  pending4Plus: number;
+  avgPendingAgeDays: number;
   deliveryTotal: number;
   avgDelivery: number;
   freeOrders: number;
@@ -388,6 +396,14 @@ export interface LogisticsServiceRow {
   share: number;
   paidOrders: number;
   paidRate: number;
+  processedOrders: number;
+  shippedOrders: number;
+  pendingShipment: number;
+  shipmentRate: number;
+  pending0To1: number;
+  pending2To3: number;
+  pending4Plus: number;
+  avgPendingAgeDays: number;
   revenue: number;
   deliveryTotal: number;
   avgDelivery: number;
@@ -452,6 +468,7 @@ export interface LogisticsDynamics {
 export interface LogisticsReport {
   period: Range;
   previous: Range;
+  dataAsOf?: string;
   current: PeriodLogistics;
   prev: PeriodLogistics;
   pilotCities: string[];
