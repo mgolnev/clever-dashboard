@@ -6,3 +6,24 @@ body {
   @apply bg-slate-100 text-ink antialiased;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+@keyframes retention-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.retention-enter {
+  animation: retention-enter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .retention-enter {
+    animation: none;
+  }
+}

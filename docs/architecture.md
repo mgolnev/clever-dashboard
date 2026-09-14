@@ -18,6 +18,7 @@
                                                   │
                                                   ▼
                                               metrics ──► HTTP API ──► React-дашборд
+                                      customeranalytics ─┘
 
 Метрика / AppMetrica ──► connectors ──► trafficsync ──► analytics_traffic_daily
                      └──► ecomsync ─────► analytics_ecommerce_daily
@@ -35,6 +36,7 @@ orders + traffic + plan ──────────────────�
 | `normalize` | Деньги, гео, статусы→стадии, атрибуты товара | — |
 | `services/orders` | Импорт, дедуп, хранение витрины | `ingestion`, `model`, `db` |
 | `services/metrics` | KPI, воронка, срезы, сравнение периодов | `db` |
+| `services/customeranalytics` | Календарные когорты и retention gross/paid | `db` |
 | `connectors/metrika`, `connectors/appmetrica` | Чтение дневных агрегатов Reporting API | `model` |
 | `services/trafficsync` | Плановый/ручной запуск, backfill, upsert и журнал синхронизации | `db`, контракт источника |
 | `services/ecomsync` | Backfill дневной аудитории E-commerce этапов | `db`, контракт источника |
@@ -43,8 +45,8 @@ orders + traffic + plan ──────────────────�
 | `handlers` | HTTP (Fiber), валидация входа | `container` |
 | `container` | DI: сборка зависимостей | все сервисы |
 
-`orders` и `metrics` не вызывают друг друга — связь только через общую БД и
-нейтральный пакет `model`.
+`orders`, `metrics` и `customeranalytics` не вызывают друг друга — связь только
+через общую БД и нейтральный пакет `model`.
 
 `goal` также не вызывает `metrics`, `acquisition`, `plan` или `trafficsync`:
 это самостоятельная оптимизированная read-модель поверх общей БД. Решение и

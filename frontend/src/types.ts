@@ -76,6 +76,62 @@ export interface CustomerRow {
   revenueShare: number;
 }
 
+export interface RetentionCell {
+  offset: number;
+  month: string;
+  customers: number;
+  rate: number;
+  available: boolean;
+  complete: boolean;
+}
+
+export interface CustomerCohort {
+  month: string;
+  customers: number;
+  cells: RetentionCell[];
+}
+
+export interface RetentionPoint {
+  offset: number;
+  customers: number;
+  eligibleCustomers: number;
+  rate: number;
+}
+
+export type CustomerGranularity = "month" | "quarter";
+
+export interface CustomerCompositionPeriod {
+  period: string;
+  customers: number;
+  new: number;
+  active: number;
+  returned: number;
+  newRate: number;
+  activeRate: number;
+  returnedRate: number;
+  complete: boolean;
+}
+
+export interface CustomerRetentionView {
+  mode: "gross" | "paid";
+  summary: {
+    customers: number;
+    cohortCount: number;
+    repeatCustomers: number;
+    repeatRate: number;
+    retention: RetentionPoint[];
+  };
+  cohorts: CustomerCohort[];
+  composition: CustomerCompositionPeriod[];
+}
+
+export interface CustomerAnalyticsReport {
+  period: { start: string; end: string };
+  granularity: CustomerGranularity;
+  gross: CustomerRetentionView;
+  paid: CustomerRetentionView;
+}
+
 export interface ProductRow {
   name: string;
   units: number;

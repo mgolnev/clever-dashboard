@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import type { AcquisitionReport, AnalyticsStatus, Bounds, City, FunnelReport, LogisticsReport, Range, Report } from "./types";
+import type { AcquisitionReport, AnalyticsStatus, Bounds, City, CustomerAnalyticsReport, CustomerGranularity, FunnelReport, LogisticsReport, Range, Report } from "./types";
 import DateRangeBar from "./components/DateRangeBar";
 import UploadCard from "./components/UploadCard";
 import KpiCards from "./components/KpiCards";
 import Funnel from "./components/Funnel";
 import CustomerKpiCards from "./components/CustomerKpiCards";
 import CustomerTable from "./components/CustomerTable";
+import CustomerRetention from "./components/CustomerRetention";
 import BreakdownList from "./components/BreakdownList";
 import ProductTable from "./components/ProductTable";
 import FunnelTab from "./components/FunnelTab";
@@ -55,6 +56,8 @@ export default function App() {
   const [compareStart, setCompareStart] = useState("");
   const [compareEnd, setCompareEnd] = useState("");
   const [report, setReport] = useState<Report | null>(null);
+  const [customerAnalytics, setCustomerAnalytics] = useState<CustomerAnalyticsReport | null>(null);
+  const [customerGranularity, setCustomerGranularity] = useState<CustomerGranularity>("month");
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
   const [logistics, setLogistics] = useState<LogisticsReport | null>(null);
   const [acquisition, setAcquisition] = useState<AcquisitionReport | null>(null);
@@ -141,6 +144,7 @@ export default function App() {
   const paymentKey = payment.join(",");
   const deliveryKey = delivery.join(",");
   const couponKey = coupon.join(",");
+  const boundsMin = bounds?.min ?? "";
 
   useEffect(() => {
     if (!start || !end || tab === "plan") return;
@@ -150,10 +154,20 @@ export default function App() {
     const f = { city, region, channel, payment, delivery, coupon };
     const loadActiveTab = async () => {
       switch (tab) {
-        case "overview":
-        case "customers": {
+        case "overview": {
           const next = await api.metrics(start, end, f, cs, ce);
           if (active) setReport(next);
+          break;
+        }
+        case "customers": {
+          const [next, cohorts] = await Promise.all([
+            api.metrics(start, end, f, cs, ce),
+            api.customerAnalytics(boundsMin || start, end, f, customerGranularity),
+          ]);
+          if (active) {
+            setReport(next);
+            setCustomerAnalytics(cohorts);
+          }
           break;
         }
         case "funnels": {
@@ -191,7 +205,7 @@ export default function App() {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, cs, ce, tab, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey]);
+  }, [start, end, cs, ce, tab, cityKey, regionKey, channelKey, paymentKey, deliveryKey, couponKey, boundsMin, customerGranularity]);
 
   const onChange = (s: string, e: string) => {
     setStart(s);
@@ -357,8 +371,9 @@ export default function App() {
         />
       )}
 
-      {tab !== "plan" && tab === "customers" && report && (
+      {tab !== "plan" && tab === "customers" && report && customerAnalytics && (
         <div className="space-y-4">
+          <CustomerRetention report={customerAnalytics} onGranularityChange={setCustomerGranularity} />
           <CustomerKpiCards
             current={report.current.kpi}
             prev={report.prev.kpi}

@@ -4,6 +4,8 @@ import type {
   AnalyticsStatus,
   AnalyticsSyncTrigger,
   City,
+  CustomerAnalyticsReport,
+  CustomerGranularity,
   FunnelReport,
   GoalReport,
   ImportResult,
@@ -113,6 +115,11 @@ export const api = {
   metrics: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
     fetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
       handle<Report>(r)
+    ),
+
+  customerAnalytics: (start: string, end: string, f: Filters, granularity: CustomerGranularity) =>
+    fetch(`/api/customer-analytics?${query(start, end, f, { granularity })}`).then((r) =>
+      handle<CustomerAnalyticsReport>(r)
     ),
 
   funnel: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>

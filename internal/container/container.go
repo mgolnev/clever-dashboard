@@ -8,6 +8,7 @@ import (
 	"github.com/clever/clever-dashboard/internal/connectors/metrika"
 	"github.com/clever/clever-dashboard/internal/db"
 	"github.com/clever/clever-dashboard/internal/services/acquisition"
+	"github.com/clever/clever-dashboard/internal/services/customeranalytics"
 	"github.com/clever/clever-dashboard/internal/services/ecomsync"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
 	"github.com/clever/clever-dashboard/internal/services/goal"
@@ -21,19 +22,20 @@ import (
 )
 
 type Container struct {
-	Cfg           config.Config
-	DB            *db.DB
-	Orders        *orders.Service
-	ImportUploads *importupload.Service
-	Metrics       *metrics.Service
-	Funnel        *funnel.Service
-	Goal          *goal.Service
-	Logistics     *logistics.Service
-	Plan          *plan.Service
-	Traffic       *traffic.Service
-	Acquisition   *acquisition.Service
-	TrafficSync   *trafficsync.Service
-	EcommerceSync *ecomsync.Service
+	Cfg               config.Config
+	DB                *db.DB
+	Orders            *orders.Service
+	ImportUploads     *importupload.Service
+	Metrics           *metrics.Service
+	Funnel            *funnel.Service
+	Goal              *goal.Service
+	Logistics         *logistics.Service
+	Plan              *plan.Service
+	Traffic           *traffic.Service
+	Acquisition       *acquisition.Service
+	CustomerAnalytics *customeranalytics.Service
+	TrafficSync       *trafficsync.Service
+	EcommerceSync     *ecomsync.Service
 }
 
 func New(cfg config.Config) (*Container, error) {
@@ -57,6 +59,7 @@ func New(cfg config.Config) (*Container, error) {
 	planSvc := plan.NewService(plan.NewRepository(database))
 	trafficSvc := traffic.NewService(traffic.NewRepository(database))
 	acquisitionSvc := acquisition.NewService(acquisition.NewRepository(database))
+	customerAnalyticsSvc := customeranalytics.NewService(customeranalytics.NewRepository(database))
 	metrikaClient := metrika.New(cfg.MetrikaCounterID, cfg.MetrikaOAuthToken, cfg.AnalyticsTimezone)
 	appMetricaClient := appmetrica.New(cfg.AppMetricaAppID, cfg.AppMetricaOAuthToken)
 	goalSvc := goal.NewService(goal.NewRepository(database), goal.Options{
@@ -84,19 +87,20 @@ func New(cfg config.Config) (*Container, error) {
 	)
 
 	return &Container{
-		Cfg:           cfg,
-		DB:            database,
-		Orders:        ordersSvc,
-		ImportUploads: importUploadSvc,
-		Metrics:       metricsSvc,
-		Funnel:        funnelSvc,
-		Goal:          goalSvc,
-		Logistics:     logisticsSvc,
-		Plan:          planSvc,
-		Traffic:       trafficSvc,
-		Acquisition:   acquisitionSvc,
-		TrafficSync:   trafficSyncSvc,
-		EcommerceSync: ecommerceSyncSvc,
+		Cfg:               cfg,
+		DB:                database,
+		Orders:            ordersSvc,
+		ImportUploads:     importUploadSvc,
+		Metrics:           metricsSvc,
+		Funnel:            funnelSvc,
+		Goal:              goalSvc,
+		Logistics:         logisticsSvc,
+		Plan:              planSvc,
+		Traffic:           trafficSvc,
+		Acquisition:       acquisitionSvc,
+		CustomerAnalytics: customerAnalyticsSvc,
+		TrafficSync:       trafficSyncSvc,
+		EcommerceSync:     ecommerceSyncSvc,
 	}, nil
 }
 

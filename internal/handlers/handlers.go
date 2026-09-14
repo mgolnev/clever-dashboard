@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/clever/clever-dashboard/internal/container"
+	"github.com/clever/clever-dashboard/internal/services/customeranalytics"
 	"github.com/clever/clever-dashboard/internal/services/funnel"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
@@ -43,6 +44,7 @@ func (h *Handler) Register(app *fiber.App) {
 	api.Get("/deliveries", h.deliveries)
 	api.Get("/coupons", h.coupons)
 	api.Get("/metrics", h.metrics)
+	api.Get("/customer-analytics", h.customerAnalytics)
 	api.Get("/funnel", h.funnel)
 	api.Get("/logistics", h.logistics)
 	api.Get("/dynamics", h.dynamics)
@@ -245,6 +247,21 @@ func (h *Handler) metrics(c *fiber.Ctx) error {
 		Delivery: c.Query("delivery"),
 		Coupon:   c.Query("coupon"),
 	})
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(report)
+}
+
+func (h *Handler) customerAnalytics(c *fiber.Ctx) error {
+	report, err := h.c.CustomerAnalytics.Report(c.Query("start"), c.Query("end"), customeranalytics.Filters{
+		City:     c.Query("city"),
+		Region:   c.Query("region"),
+		Channel:  c.Query("channel"),
+		Payment:  c.Query("payment"),
+		Delivery: c.Query("delivery"),
+		Coupon:   c.Query("coupon"),
+	}, c.Query("granularity"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
