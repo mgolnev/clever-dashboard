@@ -168,8 +168,10 @@ export default function CustomerRetention({ report, onGranularityChange }: Props
         {view.cohorts.length === 0 ? (
           <div className="py-10 text-center text-sm text-slate-400">Для выбранных фильтров нет когорт</div>
         ) : (
-          <div className="overflow-x-auto pb-1">
-            <table key={mode} className="retention-enter w-full min-w-[720px] border-separate border-spacing-1 text-sm">
+          <div>
+            <div className="relative">
+              <div className="overflow-x-auto pb-1 overscroll-x-contain">
+                <table key={mode} className="retention-enter w-full min-w-[720px] border-separate border-spacing-1 text-sm">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide text-slate-400">
                   <th className="sticky left-0 z-10 w-32 bg-white pb-1 pr-3 text-left font-medium">Когорта</th>
@@ -218,7 +220,11 @@ export default function CustomerRetention({ report, onGranularityChange }: Props
                   })}
                 </tr>
               </tfoot>
-            </table>
+                </table>
+              </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden="true" />
+            </div>
+            <MobileTableScrollHint />
           </div>
         )}
       </div>
@@ -283,8 +289,10 @@ function CompositionTable({ rows, granularity }: { rows: CustomerCompositionPeri
     return <div className="py-8 text-center text-sm text-slate-400">Нет данных о составе клиентской базы</div>;
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[820px] text-sm">
+    <div>
+      <div className="relative">
+        <div className="overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-[820px] text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
             <th className="pb-2 text-left font-medium">Период</th>
@@ -315,9 +323,23 @@ function CompositionTable({ rows, granularity }: { rows: CustomerCompositionPeri
             </tr>
           ))}
         </tbody>
-      </table>
+          </table>
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden="true" />
+      </div>
+      <MobileTableScrollHint />
       <p className="mt-2 text-[11px] text-slate-400">* незавершённый период</p>
     </div>
+  );
+}
+
+function MobileTableScrollHint() {
+  return (
+    <p className="mt-2 flex items-center justify-end gap-1.5 text-[11px] text-slate-400 sm:hidden">
+      <span aria-hidden="true">←</span>
+      Проведите по таблице
+      <span aria-hidden="true">→</span>
+    </p>
   );
 }
 

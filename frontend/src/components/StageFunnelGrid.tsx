@@ -61,6 +61,34 @@ function ratioValue(stages: KPIStages, m: StageMetricDef, rt: RatioDef): number 
   return rt.complement ? 100 - r : r;
 }
 
+function DeltaPair({
+  current,
+  previous,
+  invert,
+  fmtAbs,
+}: {
+  current: number;
+  previous: number;
+  invert?: boolean;
+  fmtAbs?: (value: number) => string;
+}) {
+  const change = delta(current, previous);
+  return (
+    <>
+      <span className="col-span-full flex flex-wrap justify-end gap-1.5 sm:hidden">
+        <DeltaBadge d={change} invert={invert} mode="pct" />
+        <DeltaBadge d={change} invert={invert} mode="abs" fmtAbs={fmtAbs} />
+      </span>
+      <span className="hidden w-[84px] shrink-0 text-right sm:block">
+        <DeltaBadge d={change} invert={invert} mode="pct" />
+      </span>
+      <span className="hidden w-[120px] shrink-0 text-right sm:block">
+        <DeltaBadge d={change} invert={invert} mode="abs" fmtAbs={fmtAbs} />
+      </span>
+    </>
+  );
+}
+
 export default function StageFunnelGrid({
   currentStages,
   prevStages,
@@ -84,21 +112,14 @@ export default function StageFunnelGrid({
                 const ps = prevStages[st.key];
                 const base = m.pick(currentStages.created);
                 return (
-                  <div key={st.key} className="flex items-center justify-between gap-2 border-b border-slate-50 pb-1.5 last:border-0 last:pb-0">
+                  <div key={st.key} className="grid grid-cols-[80px_48px_minmax(0,1fr)] items-center gap-2 border-b border-slate-50 pb-1.5 last:border-0 last:pb-0 sm:flex sm:justify-between">
                     <span className="w-[80px] shrink-0 text-xs font-medium text-ink">{st.label}</span>
                     <span className="w-12 shrink-0 text-right text-xs tabular-nums text-ink">
                       {m.additive ? sharePct(m.pick(cs), base) : ""}
                     </span>
-                    <span className="flex-1 text-right text-sm font-semibold text-ink">{m.fmt(cs)}</span>
+                    <span className="min-w-0 text-right text-sm font-semibold text-ink sm:flex-1">{m.fmt(cs)}</span>
                     {showCompare && (
-                      <>
-                        <span className="w-[84px] shrink-0 text-right">
-                          <DeltaBadge d={delta(m.pick(cs), m.pick(ps))} mode="pct" />
-                        </span>
-                        <span className="w-[120px] shrink-0 text-right">
-                          <DeltaBadge d={delta(m.pick(cs), m.pick(ps))} mode="abs" fmtAbs={m.fmtAbs} />
-                        </span>
-                      </>
+                      <DeltaPair current={m.pick(cs)} previous={m.pick(ps)} fmtAbs={m.fmtAbs} />
                     )}
                   </div>
                 );
@@ -110,20 +131,18 @@ export default function StageFunnelGrid({
                   { label: "Возвраты", stage: currentStages.returns, prevStage: prevStages.returns, invert: true },
                   { label: "Выкуплено чистыми", stage: currentStages.redeemedNet, prevStage: prevStages.redeemedNet },
                 ].map((outcome) => (
-                  <div key={outcome.label} className="flex items-center justify-between gap-2">
+                  <div key={outcome.label} className="grid grid-cols-[124px_minmax(0,1fr)] items-center gap-2 sm:flex sm:justify-between">
                     <span className={outcome.invert ? "w-[124px] shrink-0 text-xs font-medium text-rose-600" : "w-[124px] shrink-0 text-xs font-semibold text-emerald-700"}>
                       {outcome.label}
                     </span>
-                    <span className="flex-1 text-right text-sm font-semibold text-ink">{m.fmt(outcome.stage)}</span>
+                    <span className="min-w-0 text-right text-sm font-semibold text-ink sm:flex-1">{m.fmt(outcome.stage)}</span>
                     {showCompare && (
-                      <>
-                        <span className="w-[84px] shrink-0 text-right">
-                          <DeltaBadge d={delta(m.pick(outcome.stage), m.pick(outcome.prevStage))} invert={outcome.invert} mode="pct" />
-                        </span>
-                        <span className="w-[120px] shrink-0 text-right">
-                          <DeltaBadge d={delta(m.pick(outcome.stage), m.pick(outcome.prevStage))} invert={outcome.invert} mode="abs" fmtAbs={m.fmtAbs} />
-                        </span>
-                      </>
+                      <DeltaPair
+                        current={m.pick(outcome.stage)}
+                        previous={m.pick(outcome.prevStage)}
+                        invert={outcome.invert}
+                        fmtAbs={m.fmtAbs}
+                      />
                     )}
                   </div>
                 ))}
@@ -135,18 +154,11 @@ export default function StageFunnelGrid({
                   const cv = ratioValue(currentStages, m, rt);
                   const pv = ratioValue(prevStages, m, rt);
                   return (
-                    <div key={rt.label} className="flex items-center justify-between gap-2 border-b border-slate-50/50 pb-1.5 last:border-0 last:pb-0" title={rt.hint}>
+                    <div key={rt.label} className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2 border-b border-slate-50/50 pb-1.5 last:border-0 last:pb-0 sm:flex sm:justify-between" title={rt.hint}>
                       <span className="w-[80px] shrink-0 text-xs font-medium text-ink">{rt.label}</span>
-                      <span className="flex-1 text-right text-sm font-medium text-ink">{pct(cv)}</span>
+                      <span className="min-w-0 text-right text-sm font-medium text-ink sm:flex-1">{pct(cv)}</span>
                       {showCompare && (
-                        <>
-                          <span className="w-[84px] shrink-0 text-right">
-                            <DeltaBadge d={delta(cv, pv)} invert={rt.invert} mode="pct" />
-                          </span>
-                          <span className="w-[120px] shrink-0 text-right">
-                            <DeltaBadge d={delta(cv, pv)} invert={rt.invert} mode="abs" fmtAbs={ppAbs} />
-                          </span>
-                        </>
+                        <DeltaPair current={cv} previous={pv} invert={rt.invert} fmtAbs={ppAbs} />
                       )}
                     </div>
                   );

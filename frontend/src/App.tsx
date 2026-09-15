@@ -240,30 +240,32 @@ export default function App() {
         </div>
       </header>
 
-      <div className="mb-4 flex gap-1 border-b border-slate-200">
-        {(
-          [
-            ["overview", "Обзор"],
-            ["traffic", "Трафик и CR"],
-            ["plan", "Цель"],
-            ["customers", "Клиенты"],
-            ["funnels", "Воронки"],
-            ["logistics", "Логистика"],
-            ["dynamics", "Динамика"],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition ${
-                  tab === key
-                    ? "border-brand text-brand"
-                    : "border-transparent text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+      <div className="tab-strip -mx-4 mb-4 overflow-x-auto border-b border-slate-200 px-4 overscroll-x-contain">
+        <div className="flex w-max min-w-full gap-1">
+          {(
+            [
+              ["overview", "Обзор"],
+              ["traffic", "Трафик и CR"],
+              ["plan", "Цель"],
+              ["customers", "Клиенты"],
+              ["funnels", "Воронки"],
+              ["logistics", "Логистика"],
+              ["dynamics", "Динамика"],
+            ] as [Tab, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition ${
+                tab === key
+                  ? "border-brand text-brand"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "plan" && <PlanTab />}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { City } from "../types";
 import { num } from "../utils/format";
 
@@ -56,22 +56,27 @@ export default function MultiSelect({
       : `Выбрано: ${selected.length}`;
 
   return (
-    <div className="flex flex-col text-xs font-medium text-slate-500" ref={ref}>
+    <div
+      className="flex w-full flex-col text-xs font-medium text-slate-500 sm:w-auto"
+      ref={ref}
+      style={{
+        "--filter-width": `${width}px`,
+        "--filter-menu-width": `${Math.max(width, 220)}px`,
+      } as CSSProperties}
+    >
       {label}
-      <div className="relative mt-1">
+      <div className="relative mt-1 w-full">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          style={{ width }}
-          className="flex items-center justify-between gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-left text-sm text-ink transition hover:border-brand"
+          className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-left text-sm text-ink transition hover:border-brand sm:w-[var(--filter-width)]"
         >
           <span className="truncate">{summary}</span>
           <span className="shrink-0 text-slate-400">▾</span>
         </button>
         {open && (
           <div
-            style={{ width: Math.max(width, 220) }}
-            className="absolute z-20 mt-1 rounded-lg border border-slate-200 bg-white p-2 shadow-lg"
+            className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 shadow-lg sm:w-[var(--filter-menu-width)]"
           >
             <input
               autoFocus

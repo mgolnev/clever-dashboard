@@ -139,8 +139,10 @@ export default function CustomerTable({ rows, totalRevenue }: Props) {
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400">Нет данных за период</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-sm">
+        <div>
+          <div className="relative">
+            <div className="overflow-x-auto overscroll-x-contain">
+              <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-[11px] uppercase tracking-wide text-slate-400">
                 <th className="pb-2 pr-3 text-left font-medium">#</th>
@@ -192,7 +194,15 @@ export default function CustomerTable({ rows, totalRevenue }: Props) {
                 </tr>
               ))}
             </tbody>
-          </table>
+              </table>
+            </div>
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white to-transparent sm:hidden" aria-hidden="true" />
+          </div>
+          <p className="mt-2 flex items-center justify-end gap-1.5 text-[11px] text-slate-400 sm:hidden">
+            <span aria-hidden="true">←</span>
+            Проведите по таблице
+            <span aria-hidden="true">→</span>
+          </p>
         </div>
       )}
     </div>

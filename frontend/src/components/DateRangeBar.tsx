@@ -82,8 +82,8 @@ export default function DateRangeBar({
   return (
     <div className="flex flex-col gap-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
       {/* Первая строка: даты начала/конца и режим сравнения */}
-      <div className="flex flex-wrap items-end gap-4 w-full">
-        <label className="flex flex-col text-xs font-medium text-slate-500">
+      <div className="flex w-full flex-wrap items-end gap-3 sm:gap-4">
+        <label className="flex min-w-[130px] flex-1 flex-col text-xs font-medium text-slate-500 sm:flex-none">
           Начало
           <input
             type="date"
@@ -91,10 +91,10 @@ export default function DateRangeBar({
             min={min}
             max={max}
             onChange={(e) => onChange(e.target.value, end)}
-            className="mt-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink sm:w-auto"
           />
         </label>
-        <label className="flex flex-col text-xs font-medium text-slate-500">
+        <label className="flex min-w-[130px] flex-1 flex-col text-xs font-medium text-slate-500 sm:flex-none">
           Конец
           <input
             type="date"
@@ -102,11 +102,11 @@ export default function DateRangeBar({
             min={min}
             max={max}
             onChange={(e) => onChange(start, e.target.value)}
-            className="mt-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-ink sm:w-auto"
           />
         </label>
 
-        <div className="flex flex-col gap-3 border-l border-slate-200 pl-3">
+        <div className="flex w-full flex-col gap-3 border-t border-slate-100 pt-3 sm:w-auto sm:border-l sm:border-t-0 sm:border-slate-200 sm:pl-3 sm:pt-0">
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600 shrink-0">
               <input
@@ -175,7 +175,7 @@ export default function DateRangeBar({
       </div>
 
       {/* Вторая строка: остальные фильтры */}
-      {showBusinessFilters && <div className="flex flex-wrap items-end gap-3 w-full border-t border-slate-100 pt-3">
+      {showBusinessFilters && <div className="flex w-full flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
         <MultiSelect
           label="Область"
           allLabel="Все области"

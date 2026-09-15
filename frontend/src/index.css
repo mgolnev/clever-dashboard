@@ -22,6 +22,15 @@ body {
   animation: retention-enter 180ms ease-out;
 }
 
+.tab-strip {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .retention-enter {
     animation: none;
