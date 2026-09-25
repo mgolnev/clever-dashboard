@@ -16,6 +16,10 @@ type Config struct {
 	DBDriver string
 	// DBDSN: путь к файлу для sqlite или DSN для postgres.
 	DBDSN string
+	// OrdersMinCreatedAt — нижняя граница даты создания заказов (YYYY-MM-DD).
+	OrdersMinCreatedAt string
+	// OrdersPurgeExpected — точное число старых заказов для разовой очистки при запуске.
+	OrdersPurgeExpected string
 	// LogisticsPilotCities — города пилота бесплатной доставки (через запятую в env).
 	LogisticsPilotCities []string
 	// LogisticsPilotStart — дата старта пилота YYYY-MM-DD (опционально, для UI).
@@ -61,6 +65,8 @@ func Load() Config {
 		Port:                  getenv("PORT", "8080"),
 		DBDriver:              driver,
 		DBDSN:                 dsn,
+		OrdersMinCreatedAt:    strings.TrimSpace(os.Getenv("ORDERS_MIN_CREATED_AT")),
+		OrdersPurgeExpected:   strings.TrimSpace(os.Getenv("ORDERS_PURGE_EXPECTED")),
 		LogisticsPilotCities:  splitEnvList(os.Getenv("LOGISTICS_PILOT_CITIES")),
 		LogisticsPilotStart:   strings.TrimSpace(os.Getenv("LOGISTICS_PILOT_START")),
 		StaticDir:             strings.TrimSpace(os.Getenv("STATIC_DIR")),

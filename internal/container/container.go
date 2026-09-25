@@ -3,6 +3,10 @@
 package container
 
 import (
+	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/clever/clever-dashboard/internal/config"
 	"github.com/clever/clever-dashboard/internal/connectors/appmetrica"
 	"github.com/clever/clever-dashboard/internal/connectors/metrika"
@@ -15,6 +19,7 @@ import (
 	"github.com/clever/clever-dashboard/internal/services/importupload"
 	"github.com/clever/clever-dashboard/internal/services/logistics"
 	"github.com/clever/clever-dashboard/internal/services/metrics"
+	"github.com/clever/clever-dashboard/internal/services/ordercleanup"
 	"github.com/clever/clever-dashboard/internal/services/orders"
 	"github.com/clever/clever-dashboard/internal/services/plan"
 	"github.com/clever/clever-dashboard/internal/services/traffic"
@@ -39,15 +44,41 @@ type Container struct {
 }
 
 func New(cfg config.Config) (*Container, error) {
+	var minCreatedAt time.Time
+	if cfg.OrdersMinCreatedAt != "" {
+		var err error
+		minCreatedAt, err = time.Parse("2006-01-02", cfg.OrdersMinCreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("ORDERS_MIN_CREATED_AT: %w", err)
+		}
+	}
+	purgeExpected := 0
+	if cfg.OrdersPurgeExpected != "" {
+		var err error
+		purgeExpected, err = strconv.Atoi(cfg.OrdersPurgeExpected)
+		if err != nil || purgeExpected <= 0 {
+			return nil, fmt.Errorf("ORDERS_PURGE_EXPECTED должен быть положительным целым числом")
+		}
+	}
+	if purgeExpected > 0 && minCreatedAt.IsZero() {
+		return nil, fmt.Errorf("ORDERS_PURGE_EXPECTED требует ORDERS_MIN_CREATED_AT")
+	}
 	database, err := db.Open(cfg)
 	if err != nil {
 		return nil, err
 	}
 	if err := database.Migrate(); err != nil {
+		_ = database.Close()
 		return nil, err
 	}
+	if purgeExpected > 0 {
+		if _, err := ordercleanup.PurgeBefore(database, cfg.DBDSN, minCreatedAt, purgeExpected); err != nil {
+			_ = database.Close()
+			return nil, fmt.Errorf("очистка старых заказов: %w", err)
+		}
+	}
 
-	ordersSvc := orders.NewService(orders.NewRepository(database))
+	ordersSvc := orders.NewService(orders.NewRepository(database), orders.Options{MinCreatedAt: minCreatedAt})
 	importUploadSvc := importupload.New(cfg.ImportTempDir)
 	metricsSvc := metrics.NewService(metrics.NewRepository(database))
 	funnelSvc := funnel.NewService(funnel.NewRepository(database))

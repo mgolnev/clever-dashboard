@@ -36,6 +36,8 @@
 | `PORT` | Порт HTTP-сервера | `8080` |
 | `DB_DRIVER` | `sqlite` или `postgres` | `sqlite` |
 | `DB_DSN` | Путь к файлу SQLite или DSN Postgres | `/data/clever.db` |
+| `ORDERS_MIN_CREATED_AT` | Начало допустимой истории заказов (`YYYY-MM-DD`); более старые строки отклоняют весь импорт | не задано |
+| `ORDERS_PURGE_EXPECTED` | Точное число старых заказов для разовой очистки SQLite при запуске; требует `ORDERS_MIN_CREATED_AT` | не задано |
 | `STATIC_DIR` | Каталог собранного фронта | `/app/web` |
 | `IMPORT_TEMP_DIR` | Временные части больших импортов | рядом с SQLite (`/data/.import-uploads`) |
 | `LOGISTICS_PILOT_CITIES` | Города пилота (через запятую) | — |
@@ -49,6 +51,16 @@
 
 SQLite-файл лежит в постоянном хранилище `/data` (volume `clever-data` в Docker,
 `persistenceMount` в Amvera) — данные переживают пересоздание/пересборку.
+
+Для исправления ошибочно загруженных старых заказов сначала проверьте их число
+и задайте обе переменные. Например, при начале истории `2026-01-01` и ровно
+четырёх старых заказах: `ORDERS_MIN_CREATED_AT=2026-01-01` и
+`ORDERS_PURGE_EXPECTED=4`. При запуске приложение создаст резервную SQLite-копию
+`/data/clever-before-order-cleanup-*.db`, сверит её и удалит старые заказы с
+позициями одной транзакцией. При несовпадении числа приложение остановит запуск,
+не удаляя строки. После успешного запуска уберите `ORDERS_PURGE_EXPECTED`,
+оставив `ORDERS_MIN_CREATED_AT` для проверки новых файлов. Журнал загрузок
+сохраняется; подробности — [ADR 0011](adr/0011-order-history-start-and-cleanup.md).
 
 ## Деплой на Amvera Cloud
 

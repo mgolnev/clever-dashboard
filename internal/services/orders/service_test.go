@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/clever/clever-dashboard/internal/config"
 	"github.com/clever/clever-dashboard/internal/db"
@@ -79,6 +80,25 @@ func TestFailedStreamingImportKeepsPreviousOrders(t *testing.T) {
 	}
 	if imports != 1 {
 		t.Fatalf("raw_import count=%d, want 1", imports)
+	}
+}
+
+func TestImportRejectsOrdersBeforeConfiguredStartAtomically(t *testing.T) {
+	database := testDB(t)
+	svc := NewService(NewRepository(database), Options{MinCreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)})
+	file := "Номер заказа;Дата создания;Сумма\n№NEW;01.07.2026 10:00:00;1000 руб\n№OLD;01.09.2025 10:00:00;2000 руб\n"
+	if _, err := svc.Import("mixed.csv", strings.NewReader(file)); err == nil {
+		t.Fatal("импорт с заказом вне периода должен быть отклонён")
+	}
+	var orders, imports int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM orders`).Scan(&orders); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT COUNT(*) FROM raw_import`).Scan(&imports); err != nil {
+		t.Fatal(err)
+	}
+	if orders != 0 || imports != 0 {
+		t.Fatalf("частичный импорт после отклонения: orders=%d imports=%d", orders, imports)
 	}
 }
 

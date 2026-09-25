@@ -12,10 +12,21 @@ import (
 )
 
 type Service struct {
-	repo *Repository
+	repo         *Repository
+	minCreatedAt time.Time
 }
 
-func NewService(repo *Repository) *Service { return &Service{repo: repo} }
+type Options struct {
+	MinCreatedAt time.Time
+}
+
+func NewService(repo *Repository, opts ...Options) *Service {
+	s := &Service{repo: repo}
+	if len(opts) > 0 {
+		s.minCreatedAt = opts[0].MinCreatedAt
+	}
+	return s
+}
 
 const importBatchSize = 200
 
@@ -51,6 +62,9 @@ func (s *Service) Import(filename string, reader io.Reader) (*model.ImportResult
 		order, ok := ingestion.MapOrder(record)
 		if !ok {
 			return nil
+		}
+		if !s.minCreatedAt.IsZero() && (order.CreatedAt.IsZero() || order.CreatedAt.Before(s.minCreatedAt)) {
+			return fmt.Errorf("заказ %s: дата создания раньше %s; исправьте выгрузку по дате создания", order.OrderNumber, s.minCreatedAt.Format("2006-01-02"))
 		}
 		ordersTotal++
 		if !order.CreatedAt.IsZero() {
