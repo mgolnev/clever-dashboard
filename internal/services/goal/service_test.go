@@ -130,3 +130,63 @@ func TestReportValidatesPeriod(t *testing.T) {
 		t.Fatal("expected month validation error")
 	}
 }
+
+func TestReportAlignsTrafficWithOrderCoverage(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		orderDates []string
+		month      int
+		sessions   int
+		cr         float64
+	}{
+		{"traffic ahead of orders", []string{"2026-10-01", "2026-11-01"}, 11, 100, 1},
+		{"traffic before first imported order", []string{"2026-11-02", "2026-11-05"}, 11, 200, 1},
+		{"completed month keeps all traffic", []string{"2026-10-01", "2026-11-05"}, 10, 100, 1},
+		{"month before order coverage", []string{"2026-11-01"}, 10, 0, 0},
+		{"month after order coverage", []string{"2026-10-01"}, 11, 0, 0},
+		{"no orders despite loaded traffic", nil, 11, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			database := testDB(t)
+			for _, day := range tc.orderDates {
+				for _, channel := range []string{"site", "app"} {
+					if _, err := database.Exec(`INSERT INTO orders
+						(order_number, created_at, channel, total_amount, is_canceled)
+						VALUES (?, ?, ?, 1000, 0)`, day+channel, day+" 12:00:00", channel); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			for _, day := range []string{"2026-10-01", "2026-11-01", "2026-11-02", "2026-11-05"} {
+				for channel, source := range map[string]string{"site": "metrika", "app": "appmetrica"} {
+					if _, err := database.Exec(`INSERT INTO analytics_traffic_daily
+						(day, channel, sessions, source, synced_at)
+						VALUES (?, ?, 100, ?, '2026-11-06 05:00:00')`, day, channel, source); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			service := NewService(NewRepository(database), Options{Sources: []SourceDefinition{
+				{Source: "metrika", Channel: "site"}, {Source: "appmetrica", Channel: "app"},
+			}})
+			report, err := service.Report(2026, tc.month)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, channel := range report.Current.Channels {
+				wantSessions := tc.sessions
+				if channel.Channel == "all" {
+					wantSessions *= 2
+				}
+				if channel.Sessions != wantSessions || channel.NetCR != tc.cr {
+					t.Errorf("%s: sessions=%d CR=%v, want %d and %v", channel.Channel, channel.Sessions, channel.NetCR, wantSessions, tc.cr)
+				}
+			}
+			for _, source := range report.AnalyticsStatus.Sources {
+				if source.LastDataDay != "2026-11-05" {
+					t.Errorf("source freshness must remain unchanged: %+v", source)
+				}
+			}
+		})
+	}
+}

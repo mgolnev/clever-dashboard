@@ -39,14 +39,14 @@ func (s *Service) Report(year, month int) (*Report, error) {
 	}
 	monthStart := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	monthEnd := monthStart.AddDate(0, 1, -1)
-	current, err := s.period(monthStart, monthEnd)
+	current, err := s.period(monthStart, monthEnd, bounds)
 	if err != nil {
 		return nil, err
 	}
 
 	var history *PeriodSummary
 	if historyStart, historyEnd, ok := historyRange(monthStart, bounds); ok {
-		value, periodErr := s.period(historyStart, historyEnd)
+		value, periodErr := s.period(historyStart, historyEnd, bounds)
 		if periodErr != nil {
 			return nil, periodErr
 		}
@@ -68,15 +68,26 @@ func (s *Service) Report(year, month int) (*Report, error) {
 	}, nil
 }
 
-func (s *Service) period(start, end time.Time) (PeriodSummary, error) {
+func (s *Service) period(start, end time.Time, bounds Bounds) (PeriodSummary, error) {
 	startValue, endValue := start.Format("2006-01-02"), end.Format("2006-01-02")
 	orders, err := s.repo.orders(startValue, endValue)
 	if err != nil {
 		return PeriodSummary{}, err
 	}
-	sessions, err := s.repo.sessions(startValue, endValue)
-	if err != nil {
-		return PeriodSummary{}, err
+	// Трафик обновляется независимо от импорта: CR использует только диапазон заказов.
+	trafficStart, trafficEnd := startValue, endValue
+	if bounds.Min > trafficStart {
+		trafficStart = bounds.Min
+	}
+	if bounds.Max < trafficEnd {
+		trafficEnd = bounds.Max
+	}
+	sessions := map[string]int{}
+	if bounds.Min != "" && bounds.Max != "" && trafficStart <= trafficEnd {
+		sessions, err = s.repo.sessions(trafficStart, trafficEnd)
+		if err != nil {
+			return PeriodSummary{}, err
+		}
 	}
 	allConversionOrders := orders.Channels["site"].NetOrders + orders.Channels["app"].NetOrders
 	allSessions := sessions["site"] + sessions["app"]
