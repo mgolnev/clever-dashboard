@@ -26,7 +26,7 @@ function SourceNote({ status, dataThrough }: { status: AnalyticsStatus | null; d
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-200 pb-3 text-xs text-slate-500">
       <span><strong className="font-medium text-slate-700">Заказы:</strong> {dataThrough ? `по ${shortDate(dataThrough)}` : "нет данных за месяц"}</span>
       <span>
-        <strong className="font-medium text-slate-700">Трафик:</strong>{" "}
+        <strong className="font-medium text-slate-700">Трафик загружен:</strong>{" "}
         {trafficReady
           ? `Метрика по ${shortDate(metrika?.lastDataDay)}, AppMetrica по ${shortDate(appmetrica?.lastDataDay)}`
           : "автоматические данные не загружены"}
@@ -150,7 +150,7 @@ export default function GoalSummary({ progress, allocation, analyticsStatus }: P
             <h2 className="text-base font-semibold text-ink">Фактические рычаги</h2>
             <p className="mt-1 text-sm text-slate-500">
               {progress.driver.source === "current"
-                ? "Трафик и конверсия выбранного месяца; G2N — из зрелой истории."
+                ? `Трафик для CR — за период заказов: ${shortDate(progress.coverageStarts)} — ${shortDate(progress.dataThrough)}. G2N — из зрелой истории.`
                 : progress.driver.source === "history"
                   ? "В месяце ещё мало данных — используем последние доступные 30 дней."
                   : "Трафик не загружен — денежные показатели считаются только по заказам."}
