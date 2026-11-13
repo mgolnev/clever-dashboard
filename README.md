@@ -115,3 +115,11 @@ Dockerfile, docker-compose.yml, .env.example — деплой
 go test ./... -count=1
 cd frontend && npx tsc --noEmit
 ```
+
+## Вход в сервис
+
+Доступ к данным требует авторизации. Перед запуском задайте `AUTH_USERNAME` и
+`AUTH_PASSWORD` (минимум 12 байт) в окружении backend. Для локального HTTP также
+задайте `AUTH_COOKIE_SECURE=false`. Скрипт перезапуска читает `.env.local`.
+В Amvera добавьте пароль в секреты до выкладки; без него backend не стартует.
+[Подробная настройка](docs/auth.md).

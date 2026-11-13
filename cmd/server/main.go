@@ -10,8 +10,8 @@ import (
 	"github.com/clever/clever-dashboard/internal/config"
 	"github.com/clever/clever-dashboard/internal/container"
 	"github.com/clever/clever-dashboard/internal/handlers"
+	authhandler "github.com/clever/clever-dashboard/internal/handlers/auth"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
@@ -38,7 +38,7 @@ func main() {
 		ErrorHandler: errorHandler,
 	})
 	app.Use(logger.New())
-	app.Use(cors.New())
+	authhandler.Register(app, c.Auth, cfg.AuthCookieSecure)
 
 	handlers.New(c).Register(app)
 

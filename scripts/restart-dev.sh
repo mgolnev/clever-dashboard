@@ -45,6 +45,11 @@ kill_port() {
 
 restart_backend() {
   echo "[restart] backend :8080"
+  if [[ -f .env.local ]]; then
+    set -a
+    source .env.local
+    set +a
+  fi
   kill_port 8080
   spawn_detached "$PID_DIR/clever-backend.pid" "$PID_DIR/clever-backend.log" go run ./cmd/server
   echo "[restart] backend started (pid $(cat "$PID_DIR/clever-backend.pid" 2>/dev/null || echo '?')), log: $PID_DIR/clever-backend.log"

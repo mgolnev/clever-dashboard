@@ -28,7 +28,6 @@ func New(c *container.Container) *Handler { return &Handler{c: c} }
 
 func (h *Handler) Register(app *fiber.App) {
 	api := app.Group("/api")
-	api.Get("/health", h.health)
 	api.Post("/import", h.importFile)
 	api.Post("/import/uploads", h.createImportUpload)
 	api.Put("/import/uploads/:id/chunks/:index", h.uploadImportChunk)

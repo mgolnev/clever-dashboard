@@ -47,7 +47,7 @@ function shiftMonths(date: string, n: number): string {
   return formatLocalDate(d);
 }
 
-export default function App() {
+export default function App({ username, onLogout }: { username: string; onLogout: () => Promise<void> }) {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -237,6 +237,10 @@ export default function App() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-ink">CLEVER DASHBOARD</h1>
           <UploadCard onImported={onImported} />
+          <div className="ml-auto flex items-center gap-3 text-sm text-slate-500">
+            <span>{username}</span>
+            <button onClick={onLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 hover:bg-white">Выйти</button>
+          </div>
         </div>
       </header>
 

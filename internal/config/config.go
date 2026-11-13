@@ -11,7 +11,10 @@ import (
 // Config — конфигурация приложения. Значения берутся из env с дефолтами для
 // локального запуска "из коробки" (SQLite, порт 8080).
 type Config struct {
-	Port string
+	Port             string
+	AuthUsername     string
+	AuthPassword     string
+	AuthCookieSecure bool
 	// DBDriver: "sqlite" (по умолчанию) или "postgres".
 	DBDriver string
 	// DBDSN: путь к файлу для sqlite или DSN для postgres.
@@ -62,6 +65,9 @@ func Load() Config {
 		}
 	}
 	return Config{
+		AuthUsername:          getenv("AUTH_USERNAME", "admin"),
+		AuthPassword:          os.Getenv("AUTH_PASSWORD"),
+		AuthCookieSecure:      getenvBool("AUTH_COOKIE_SECURE", true),
 		Port:                  getenv("PORT", "8080"),
 		DBDriver:              driver,
 		DBDSN:                 dsn,

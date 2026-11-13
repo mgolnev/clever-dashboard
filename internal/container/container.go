@@ -4,6 +4,7 @@ package container
 
 import (
 	"fmt"
+	"github.com/clever/clever-dashboard/internal/services/auth"
 	"strconv"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 )
 
 type Container struct {
+	Auth              *auth.Service
 	Cfg               config.Config
 	DB                *db.DB
 	Orders            *orders.Service
@@ -44,6 +46,10 @@ type Container struct {
 }
 
 func New(cfg config.Config) (*Container, error) {
+	authSvc, err := auth.New(cfg.AuthUsername, cfg.AuthPassword)
+	if err != nil {
+		return nil, err
+	}
 	var minCreatedAt time.Time
 	if cfg.OrdersMinCreatedAt != "" {
 		var err error
@@ -118,6 +124,7 @@ func New(cfg config.Config) (*Container, error) {
 	)
 
 	return &Container{
+		Auth:              authSvc,
 		Cfg:               cfg,
 		DB:                database,
 		Orders:            ordersSvc,

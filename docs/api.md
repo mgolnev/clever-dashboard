@@ -620,3 +620,18 @@ frontend-hook; атомарные backend-сервисы не вызывают �
 ```
 
 `PUT` всегда сохраняет `source=manual` и не перезаписывает дневные авто-данные.
+
+## Авторизация
+
+Все `/api/*`, кроме `GET /api/health` и `POST /api/auth/login`, требуют cookie
+`clever_session`. Без действующей сессии возвращается 401. Все POST/PUT/DELETE
+(включая загрузку файлов и вход) требуют `X-Requested-With: CleverDashboard`,
+иначе 403. Cross-origin API не поддерживается.
+
+- `POST /api/auth/login`: JSON `{ "username": "...", "password": "..." }`;
+  200 `{ "username": "..." }` и HttpOnly cookie на 12 часов; 401 при неверных
+  данных, 429 после 10 попыток за минуту с одного IP.
+- `GET /api/auth/session`: 200 `{ "username": "..." }` или 401.
+- `POST /api/auth/logout`: отзыв текущей сессии, очистка cookie, 204.
+
+Настройка: [инструкция](auth.md). Решение: [ADR-0012](adr/0012-shared-account-auth.md).

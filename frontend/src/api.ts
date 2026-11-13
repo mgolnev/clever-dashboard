@@ -1,3 +1,4 @@
+import { apiFetch } from "./services/auth";
 import type {
   Bounds,
   AcquisitionReport,
@@ -78,22 +79,22 @@ function query(
 export const api = {
   goal: (year: number, month: number, signal?: AbortSignal) => {
     const params = new URLSearchParams({ year: String(year), month: String(month) });
-    return fetch(`/api/goal?${params.toString()}`, { signal }).then((r) => handle<GoalReport>(r));
+    return apiFetch(`/api/goal?${params.toString()}`, { signal }).then((r) => handle<GoalReport>(r));
   },
 
-  bounds: () => fetch("/api/bounds").then((r) => handle<Bounds>(r)),
+  bounds: () => apiFetch("/api/bounds").then((r) => handle<Bounds>(r)),
 
-  cities: () => fetch("/api/cities").then((r) => handle<City[]>(r)),
+  cities: () => apiFetch("/api/cities").then((r) => handle<City[]>(r)),
 
-  regions: () => fetch("/api/regions").then((r) => handle<City[]>(r)),
+  regions: () => apiFetch("/api/regions").then((r) => handle<City[]>(r)),
 
-  channels: () => fetch("/api/channels").then((r) => handle<City[]>(r)),
+  channels: () => apiFetch("/api/channels").then((r) => handle<City[]>(r)),
 
-  payments: () => fetch("/api/payments").then((r) => handle<City[]>(r)),
+  payments: () => apiFetch("/api/payments").then((r) => handle<City[]>(r)),
 
-  deliveries: () => fetch("/api/deliveries").then((r) => handle<City[]>(r)),
+  deliveries: () => apiFetch("/api/deliveries").then((r) => handle<City[]>(r)),
 
-  coupons: () => fetch("/api/coupons").then((r) => handle<City[]>(r)),
+  coupons: () => apiFetch("/api/coupons").then((r) => handle<City[]>(r)),
 
   acquisition: (start: string, end: string, compareStart?: string, compareEnd?: string) => {
     const p = new URLSearchParams({ start, end });
@@ -101,29 +102,29 @@ export const api = {
       p.set("compareStart", compareStart);
       p.set("compareEnd", compareEnd);
     }
-    return fetch(`/api/acquisition?${p.toString()}`).then((r) => handle<AcquisitionReport>(r));
+    return apiFetch(`/api/acquisition?${p.toString()}`).then((r) => handle<AcquisitionReport>(r));
   },
 
   analyticsStatus: (signal?: AbortSignal) =>
-    fetch("/api/analytics/status", { signal }).then((r) => handle<AnalyticsStatus>(r)),
+    apiFetch("/api/analytics/status", { signal }).then((r) => handle<AnalyticsStatus>(r)),
 
   syncAnalytics: (signal?: AbortSignal) =>
-    fetch("/api/analytics/sync", { method: "POST", signal }).then((r) =>
+    apiFetch("/api/analytics/sync", { method: "POST", signal }).then((r) =>
       handle<AnalyticsSyncTrigger>(r)
     ),
 
   metrics: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
-    fetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
+    apiFetch(`/api/metrics?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
       handle<Report>(r)
     ),
 
   customerAnalytics: (start: string, end: string, f: Filters, granularity: CustomerGranularity) =>
-    fetch(`/api/customer-analytics?${query(start, end, f, { granularity })}`).then((r) =>
+    apiFetch(`/api/customer-analytics?${query(start, end, f, { granularity })}`).then((r) =>
       handle<CustomerAnalyticsReport>(r)
     ),
 
   funnel: (start: string, end: string, f: Filters, compareStart?: string, compareEnd?: string) =>
-    fetch(`/api/funnel?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
+    apiFetch(`/api/funnel?${query(start, end, f, { compareStart, compareEnd })}`).then((r) =>
       handle<FunnelReport>(r)
     ),
 
@@ -135,12 +136,12 @@ export const api = {
     compareStart?: string,
     compareEnd?: string
   ) =>
-    fetch(
+    apiFetch(
       `/api/logistics?${query(start, end, f, { granularity, compareStart, compareEnd })}`
     ).then((r) => handle<LogisticsReport>(r)),
 
   dynamics: (start: string, end: string, f: Filters, groupBy: string, granularity?: string) =>
-    fetch(
+    apiFetch(
       `/api/dynamics?${query(start, end, f, { granularity })}&groupBy=${encodeURIComponent(groupBy)}`
     ).then((r) => handle<LogisticsDynamics>(r)),
 
@@ -149,13 +150,13 @@ export const api = {
       const fd = new FormData();
       fd.append("file", file);
       onProgress?.({ phase: "processing", percent: 100 });
-      return fetch("/api/import", { method: "POST", body: fd }).then((r) =>
+      return apiFetch("/api/import", { method: "POST", body: fd }).then((r) =>
         handle<ImportResult>(r)
       );
     }
 
     onProgress?.({ phase: "uploading", percent: 0 });
-    const session = await fetch("/api/import/uploads", {
+    const session = await apiFetch("/api/import/uploads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename: file.name, size: file.size }),
@@ -165,7 +166,7 @@ export const api = {
       for (let index = 0; index < session.chunksTotal; index += 1) {
         const start = index * session.chunkSize;
         const end = Math.min(start + session.chunkSize, file.size);
-        const response = await fetch(`/api/import/uploads/${session.uploadId}/chunks/${index}`, {
+        const response = await apiFetch(`/api/import/uploads/${session.uploadId}/chunks/${index}`, {
           method: "PUT",
           headers: { "Content-Type": "application/octet-stream" },
           body: file.slice(start, end),
@@ -177,45 +178,45 @@ export const api = {
         });
       }
       onProgress?.({ phase: "processing", percent: 100 });
-      return await fetch(`/api/import/uploads/${session.uploadId}/complete`, {
+      return await apiFetch(`/api/import/uploads/${session.uploadId}/complete`, {
         method: "POST",
       }).then((r) => handle<ImportResult>(r));
     } catch (error) {
-      await fetch(`/api/import/uploads/${session.uploadId}`, { method: "DELETE" }).catch(() => undefined);
+      await apiFetch(`/api/import/uploads/${session.uploadId}`, { method: "DELETE" }).catch(() => undefined);
       throw error;
     }
   },
 
   getPlan: (year: number) =>
-    fetch(`/api/plan?year=${year}`).then((r) => handle<PlanReport>(r)),
+    apiFetch(`/api/plan?year=${year}`).then((r) => handle<PlanReport>(r)),
 
   putPlan: (
     year: number,
     items: { month: number; channel: string; netTarget: number }[]
   ) =>
-    fetch("/api/plan", {
+    apiFetch("/api/plan", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ year, items }),
     }).then((r) => handle<PlanReport>(r)),
 
   getTraffic: (year: number) =>
-    fetch(`/api/traffic?year=${year}`).then((r) => handle<TrafficReport>(r)),
+    apiFetch(`/api/traffic?year=${year}`).then((r) => handle<TrafficReport>(r)),
 
   putTraffic: (
     year: number,
     items: { month: number; channel: string; visits: number }[]
   ) =>
-    fetch("/api/traffic", {
+    apiFetch("/api/traffic", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ year, items }),
     }).then((r) => handle<TrafficReport>(r)),
 
-  localFiles: () => fetch("/api/import/local").then((r) => handle<string[]>(r)),
+  localFiles: () => apiFetch("/api/import/local").then((r) => handle<string[]>(r)),
 
   importLocalFile: (filename: string) =>
-    fetch("/api/import/local", {
+    apiFetch("/api/import/local", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename }),
